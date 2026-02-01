@@ -16,6 +16,7 @@ import { FilesetResolver, ObjectDetector } from 'https://cdn.jsdelivr.net/npm/@m
   var canvasOverlay = document.getElementById('canvas-overlay');
   var ctx = canvasOverlay.getContext('2d');
   var countDisplay = document.getElementById('count-display');
+  var inferenceMsEl = document.getElementById('inference-ms');
   var errorMsg = document.getElementById('error-msg');
   var btnStart = document.getElementById('btn-start');
   var btnStop = document.getElementById('btn-stop');
@@ -30,6 +31,8 @@ import { FilesetResolver, ObjectDetector } from 'https://cdn.jsdelivr.net/npm/@m
   var positionBuffer = [];
   var lastJuggleTime = 0;
   var lastVideoTime = -1;
+  var lastDetectionTime = 0;
+  var DETECTION_INTERVAL_MS = 33; // ~30 FPS for live camera (guide: process when frame changes)
 
   function showError(msg) {
     errorMsg.textContent = msg;
@@ -174,17 +177,38 @@ import { FilesetResolver, ObjectDetector } from 'https://cdn.jsdelivr.net/npm/@m
     ctx.strokeRect(x, y, w, h);
   }
 
-  // --- Detection loop: read frame from single video element ---
+  // --- Detection loop: aligned with guide; for live camera use fixed interval (video.currentTime often does not advance per frame) ---
+  function isLiveStream() {
+    return video.srcObject && !video.src;
+  }
+
   function runDetectionLoop() {
     if (!isRunning || !objectDetector || video.readyState < 2) {
       animationId = requestAnimationFrame(runDetectionLoop);
       return;
     }
-    var currentTime = video.currentTime;
-    if (currentTime !== lastVideoTime && currentTime >= 0) {
-      lastVideoTime = currentTime;
-      var timestampMs = Math.round(currentTime * 1000);
+    var now = performance.now();
+    var shouldDetect = false;
+    var timestampMs;
+    if (isLiveStream()) {
+      if (now - lastDetectionTime >= DETECTION_INTERVAL_MS) {
+        shouldDetect = true;
+        timestampMs = Math.round(now);
+        lastDetectionTime = now;
+      }
+    } else {
+      var currentTime = video.currentTime;
+      if (currentTime !== lastVideoTime && currentTime >= 0) {
+        shouldDetect = true;
+        lastVideoTime = currentTime;
+        timestampMs = Math.round(currentTime * 1000);
+      }
+    }
+    if (shouldDetect) {
+      var t0 = performance.now();
       var detections = objectDetector.detectForVideo(video, timestampMs);
+      var inferenceMs = Math.round(performance.now() - t0);
+      inferenceMsEl.textContent = inferenceMs + ' ms';
       var center = getBallCenterFromDetections(detections);
       pushPosition(center);
       tryCountJuggle();
@@ -197,6 +221,8 @@ import { FilesetResolver, ObjectDetector } from 'https://cdn.jsdelivr.net/npm/@m
     if (isRunning) return;
     isRunning = true;
     lastVideoTime = -1;
+    lastDetectionTime = 0;
+    inferenceMsEl.textContent = '';
     runDetectionLoop();
   }
 
@@ -206,6 +232,7 @@ import { FilesetResolver, ObjectDetector } from 'https://cdn.jsdelivr.net/npm/@m
       cancelAnimationFrame(animationId);
       animationId = null;
     }
+    inferenceMsEl.textContent = '';
     ctx.clearRect(0, 0, canvasOverlay.width, canvasOverlay.height);
   }
 

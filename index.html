@@ -59,6 +59,11 @@
       color: rgba(255,255,255,0.9);
       font-size: 0.9rem;
     }
+    #inference-ms {
+      color: rgba(255,255,255,0.85);
+      font-size: 0.85rem;
+      min-width: 5rem;
+    }
     button {
       padding: 0.5rem 1rem;
       font-size: 1rem;
@@ -95,6 +100,7 @@
     <div id="controls">
       <span id="count-display">0</span>
       <span id="count-label">набиваний</span>
+      <span id="inference-ms" aria-label="Inference time in milliseconds"></span>
       <button type="button" id="btn-start">Start</button>
       <button type="button" id="btn-stop" disabled>Stop</button>
       <button type="button" id="btn-reset">Reset</button>
