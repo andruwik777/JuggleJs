@@ -1,4 +1,7 @@
-(function () {
+// MediaPipe Tasks Vision (ES module per https://ai.google.dev/edge/mediapipe/solutions/vision/object_detector/web_js)
+import { FilesetResolver, ObjectDetector } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs';
+
+(function (FilesetResolverRef, ObjectDetectorRef) {
   'use strict';
 
   // --- Constants (plan: category name and model path) ---
@@ -84,8 +87,8 @@
   // --- MediaPipe Object Detector ---
   function initDetector() {
     if (objectDetector) return Promise.resolve(objectDetector);
-    return window.FilesetResolver.forVisionTasks(WASM_PATH).then(function (vision) {
-      return window.ObjectDetector.createFromOptions(vision, {
+    return FilesetResolverRef.forVisionTasks(WASM_PATH).then(function (vision) {
+      return ObjectDetectorRef.createFromOptions(vision, {
         baseOptions: { modelAssetPath: MODEL_PATH },
         scoreThreshold: 0.4,
         maxResults: 5,
@@ -235,4 +238,4 @@
 
   // Resize canvas when window resizes
   window.addEventListener('resize', resizeCanvas);
-})();
+})(FilesetResolver, ObjectDetector);
