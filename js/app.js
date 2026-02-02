@@ -38,7 +38,7 @@ function hasGetUserMedia() {
   return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
 }
 
-var children = [];
+let ballHighlighter = null;
 
 if (hasGetUserMedia()) {
   enableWebcamButton = document.getElementById('webcamButton');
@@ -102,31 +102,20 @@ async function predictWebcam() {
 }
 
 function displayVideoDetections(result) {
-  for (let child of children) {
-    liveView.removeChild(child);
+  if (!ballHighlighter) {
+    ballHighlighter = document.createElement('div');
+    ballHighlighter.setAttribute('class', 'highlighter');
+    liveView.appendChild(ballHighlighter);
   }
-  children.splice(0);
-
-  for (let detection of result.detections) {
-    const highlighter = document.createElement('div');
-    highlighter.setAttribute('class', 'highlighter');
-    highlighter.style =
-      'left: ' +
-      (video.offsetWidth -
-        detection.boundingBox.width -
-        detection.boundingBox.originX) +
-      'px;' +
-      'top: ' +
-      detection.boundingBox.originY +
-      'px;' +
-      'width: ' +
-      (detection.boundingBox.width - 10) +
-      'px;' +
-      'height: ' +
-      detection.boundingBox.height +
-      'px;';
-
-    liveView.appendChild(highlighter);
-    children.push(highlighter);
+  const detection = result.detections && result.detections[0];
+  if (detection && detection.boundingBox) {
+    const b = detection.boundingBox;
+    ballHighlighter.style.left = (video.offsetWidth - b.width - b.originX) + 'px';
+    ballHighlighter.style.top = b.originY + 'px';
+    ballHighlighter.style.width = (b.width - 10) + 'px';
+    ballHighlighter.style.height = b.height + 'px';
+    ballHighlighter.style.display = 'block';
+  } else {
+    ballHighlighter.style.display = 'none';
   }
 }
