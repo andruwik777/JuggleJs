@@ -207,14 +207,14 @@ function displayVideoDetections(result) {
   } else {
     ballHighlighter.style.display = 'none';
   }
-  liveVisualisation();
+  liveSnakeVisualisation();
 }
 
 /**
  * Draw ballState as a "snake" in a frame at bottom-left: 75vw x 20vh.
  * Oldest point left, newest right; Y scaled to frame height each frame.
  */
-function liveVisualisation() {
+function liveSnakeVisualisation() {
   const n = ballState.length;
   if (n === 0) {
     if (snakeFrame) snakeFrame.style.display = 'none';
@@ -255,7 +255,7 @@ function liveVisualisation() {
     const xFrac = n > 1 ? i / (n - 1) : 0.5;
     const x = xFrac * frameW;
     const yFrac = rangeY > 0 ? (pt.y - minY) * yScale : 0.5;
-    const y = (1 - yFrac) * frameH;
+    const y = yFrac * frameH;
     const el = snakeDots[i];
     el.style.left = (x - half) + 'px';
     el.style.top = (y - half) + 'px';
