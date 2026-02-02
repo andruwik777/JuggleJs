@@ -35,9 +35,9 @@ const deltaMsEl = document.getElementById('deltaMs');
 const juggleCountEl = document.getElementById('juggleCount');
 let enableWebcamButton;
 
-const POSITION_BUFFER_SIZE = 8;
+const STATE_BUFFER_CAPACITY = 30;
 let juggleCount = 0;
-let positionBuffer = [];
+let ballState = [];
 let lastLocalMinY = null;
 
 function hasGetUserMedia() {
@@ -113,22 +113,33 @@ function setJuggleCount(n) {
   if (juggleCountEl) juggleCountEl.textContent = n + ' набиваний';
 }
 
-function tryCountJuggle(centerY, diameter) {
-  if (centerY == null || diameter == null) return;
-  const now = Date.now();
-  positionBuffer.push({ y: centerY, d: diameter, t: now });
-  if (positionBuffer.length > POSITION_BUFFER_SIZE) positionBuffer.shift();
-  if (positionBuffer.length < 3) return;
-  const n = positionBuffer.length;
-  const prev = positionBuffer[n - 2];
-  const curr = positionBuffer[n - 1];
-  const prevPrev = positionBuffer[n - 3];
+function pushBallState(x, y, d, f, t) {
+  var vx = 0;
+  var vy = 0;
+  if (ballState.length > 0) {
+    var prev = ballState[ballState.length - 1];
+    var dtSec = (t - prev.t) / 1000;
+    if (dtSec > 0) {
+      vx = (x - prev.x) / dtSec;
+      vy = (y - prev.y) / dtSec;
+    }
+  }
+  ballState.push({ x: x, y: y, vx: vx, vy: vy, d: d, f: f, t: t });
+  if (ballState.length > STATE_BUFFER_CAPACITY) ballState.shift();
+}
+
+function tryCountJuggle() {
+  if (ballState.length < 3) return;
+  var n = ballState.length;
+  var prev = ballState[n - 2];
+  var curr = ballState[n - 1];
+  var prevPrev = ballState[n - 3];
   if (prev.y <= prevPrev.y && prev.y <= curr.y) {
     lastLocalMinY = prev.y;
   }
   if (prev.y >= prevPrev.y && prev.y >= curr.y) {
-    const dropFromTop = prev.y - (lastLocalMinY != null ? lastLocalMinY : prev.y);
-    const minAmplitude = prev.d / 2;
+    var dropFromTop = prev.y - (lastLocalMinY != null ? lastLocalMinY : prev.y);
+    var minAmplitude = prev.d / 2;
     if (dropFromTop >= minAmplitude) {
       setJuggleCount(juggleCount + 1);
     }
@@ -147,8 +158,9 @@ function displayVideoDetections(result) {
     const d = b.height;
     const centerX = b.originX + b.width / 2;
     const centerY = b.originY + b.height / 2;
-    const diameter = b.height;
-    tryCountJuggle(centerY, diameter);
+    const t = Date.now();
+    pushBallState(centerX, centerY, d, true, t);
+    tryCountJuggle();
     ballHighlighter.style.left = (video.offsetWidth - centerX - d / 2) + 'px';
     ballHighlighter.style.top = (centerY - d / 2) + 'px';
     ballHighlighter.style.width = d + 'px';
