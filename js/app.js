@@ -209,7 +209,7 @@ async function predictWebcam() {
 
 function setJuggleCount(n) {
   juggleCount = n;
-  if (juggleCountEl) juggleCountEl.textContent = n + ' набиваний';
+  if (juggleCountEl) juggleCountEl.textContent = n + ' juggles';
 }
 
 /**
