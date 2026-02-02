@@ -110,10 +110,13 @@ function displayVideoDetections(result) {
   const detection = result.detections && result.detections[0];
   if (detection && detection.boundingBox) {
     const b = detection.boundingBox;
-    ballHighlighter.style.left = (video.offsetWidth - b.width - b.originX) + 'px';
-    ballHighlighter.style.top = b.originY + 'px';
-    ballHighlighter.style.width = (b.width - 10) + 'px';
-    ballHighlighter.style.height = b.height + 'px';
+    const d = b.height;
+    const centerX = b.originX + b.width / 2;
+    const centerY = b.originY + b.height / 2;
+    ballHighlighter.style.left = (video.offsetWidth - centerX - d / 2) + 'px';
+    ballHighlighter.style.top = (centerY - d / 2) + 'px';
+    ballHighlighter.style.width = d + 'px';
+    ballHighlighter.style.height = d + 'px';
     ballHighlighter.style.display = 'block';
   } else {
     ballHighlighter.style.display = 'none';
