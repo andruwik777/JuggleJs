@@ -29,6 +29,7 @@ initializeObjectDetector();
 
 let video = document.getElementById('webcam');
 const liveView = document.getElementById('liveView');
+const videoStage = document.getElementById('videoStage');
 const detectForVideoMsEl = document.getElementById('detectForVideoMs');
 const predictWebcamMsEl = document.getElementById('predictWebcamMs');
 const deltaMsEl = document.getElementById('deltaMs');
@@ -68,11 +69,34 @@ async function enableCam(event) {
     .then(function (stream) {
       video.srcObject = stream;
       if (juggleCountEl) juggleCountEl.classList.remove('hidden');
-      video.addEventListener('loadeddata', predictWebcam);
+      document.body.classList.add('live-active');
+      liveView.classList.add('live-fullscreen');
+      video.addEventListener('loadeddata', onVideoReady);
     })
     .catch((err) => {
       console.error(err);
     });
+}
+
+function resizeStageToContain() {
+  if (!videoStage || !video.videoWidth) return;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const r = video.videoWidth / video.videoHeight;
+  let w = vw;
+  let h = vw / r;
+  if (h > vh) {
+    h = vh;
+    w = vh * r;
+  }
+  videoStage.style.width = w + 'px';
+  videoStage.style.height = h + 'px';
+}
+
+function onVideoReady() {
+  resizeStageToContain();
+  window.addEventListener('resize', resizeStageToContain);
+  predictWebcam();
 }
 
 let lastVideoTime = -1;
@@ -147,10 +171,11 @@ function tryCountJuggle() {
 }
 
 function displayVideoDetections(result) {
+  const container = videoStage || liveView;
   if (!ballHighlighter) {
     ballHighlighter = document.createElement('div');
     ballHighlighter.setAttribute('class', 'highlighter');
-    liveView.appendChild(ballHighlighter);
+    container.appendChild(ballHighlighter);
   }
   const detection = result.detections && result.detections[0];
   if (detection && detection.boundingBox) {

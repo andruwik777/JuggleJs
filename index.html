@@ -14,10 +14,18 @@
       --mdc-theme-primary: #007f8b;
       --mdc-theme-on-primary: #f1f3f4;
     }
-    h1 { color: #007f8b; }
+    body.live-active {
+      margin: 0;
+      overflow: hidden;
+    }
+    h1 {
+      display: none;
+    }
     video {
-      clear: both;
       display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
       transform: rotateY(180deg);
       -webkit-transform: rotateY(180deg);
       -moz-transform: rotateY(180deg);
@@ -31,17 +39,31 @@
       width: 48%;
       margin: 2% 1%;
     }
+    .videoView.live-fullscreen {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
     .videoView p {
       position: absolute;
       padding: 5px;
-      padding-bottom: 5px;
-      padding-top: 5px;
       background-color: #007f8b;
       color: #fff;
       border: 1px dashed rgba(255, 255, 255, 0.7);
       z-index: 2;
       font-size: 12px;
       margin: 0;
+    }
+    .video-stage {
+      position: relative;
+      flex-shrink: 0;
     }
     .highlighter {
       background: none;
@@ -53,32 +75,37 @@
     }
     .juggle-count {
       position: absolute;
-      top: 8px;
-      left: 8px;
-      right: 8px;
-      text-align: center;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: inline-block;
+      padding: 8px 16px;
       font-size: 1.5rem;
       font-weight: bold;
       color: #fff;
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+      background: rgba(0, 0, 0, 0.6);
+      border-radius: 6px;
       z-index: 3;
     }
     .juggle-count.hidden {
       display: none;
     }
     .timing-stats {
+      display: none;
+    }
+    .live-fullscreen .timing-stats {
+      display: inline-flex;
       position: absolute;
-      bottom: 8px;
-      left: 8px;
-      right: 8px;
-      display: flex;
+      bottom: 0;
+      left: 0;
       flex-wrap: wrap;
       gap: 0.75rem;
       font-size: 12px;
       color: #fff;
       background: rgba(0, 0, 0, 0.6);
-      padding: 4px 8px;
-      border-radius: 4px;
+      padding: 6px 10px;
+      border-radius: 4px 4px 0 0;
       z-index: 3;
     }
   </style>
@@ -90,14 +117,16 @@
     <div id="liveView" class="videoView">
       <button id="webcamButton" class="mdc-button mdc-button--raised">
         <span class="mdc-button__ripple"></span>
-        <span class="mdc-button__label">ENABLE WEBCAM</span>
+        <span class="mdc-button__label">Start juggle count</span>
       </button>
-      <div id="juggleCount" class="juggle-count hidden" aria-live="polite">0 набиваний</div>
-      <video id="webcam" autoplay playsinline></video>
-      <div id="timingStats" class="timing-stats" aria-live="polite">
-        <span id="detectForVideoMs">detectForVideo: — ms</span>
-        <span id="predictWebcamMs">predictWebcam: — ms</span>
-        <span id="deltaMs">DELTA: — ms</span>
+      <div id="videoStage" class="video-stage">
+        <video id="webcam" autoplay playsinline></video>
+        <div id="juggleCount" class="juggle-count hidden" aria-live="polite">0 набиваний</div>
+        <div id="timingStats" class="timing-stats" aria-live="polite">
+          <span id="detectForVideoMs">detectForVideo: — ms</span>
+          <span id="predictWebcamMs">predictWebcam: — ms</span>
+          <span id="deltaMs">DELTA: — ms</span>
+        </div>
       </div>
     </div>
   </section>
