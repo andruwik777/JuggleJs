@@ -108,25 +108,6 @@ function displayVideoDetections(result) {
   children.splice(0);
 
   for (let detection of result.detections) {
-    const p = document.createElement('p');
-    p.innerText =
-      detection.categories[0].categoryName +
-      ' - with ' +
-      Math.round(parseFloat(detection.categories[0].score) * 100) +
-      '% confidence.';
-    p.style =
-      'left: ' +
-      (video.offsetWidth -
-        detection.boundingBox.width -
-        detection.boundingBox.originX) +
-      'px;' +
-      'top: ' +
-      detection.boundingBox.originY +
-      'px; ' +
-      'width: ' +
-      (detection.boundingBox.width - 10) +
-      'px;';
-
     const highlighter = document.createElement('div');
     highlighter.setAttribute('class', 'highlighter');
     highlighter.style =
@@ -146,9 +127,6 @@ function displayVideoDetections(result) {
       'px;';
 
     liveView.appendChild(highlighter);
-    liveView.appendChild(p);
-
     children.push(highlighter);
-    children.push(p);
   }
 }
