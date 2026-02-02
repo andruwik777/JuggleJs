@@ -36,10 +36,9 @@ const juggleCountEl = document.getElementById('juggleCount');
 let enableWebcamButton;
 
 const POSITION_BUFFER_SIZE = 8;
-const MIN_JUGGLE_INTERVAL_MS = 400;
 let juggleCount = 0;
 let positionBuffer = [];
-let lastJuggleTime = 0;
+let lastLocalMinY = null;
 
 function hasGetUserMedia() {
   return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
@@ -114,19 +113,23 @@ function setJuggleCount(n) {
   if (juggleCountEl) juggleCountEl.textContent = n + ' набиваний';
 }
 
-function tryCountJuggle(centerY) {
-  if (centerY == null) return;
+function tryCountJuggle(centerY, diameter) {
+  if (centerY == null || diameter == null) return;
   const now = Date.now();
-  positionBuffer.push({ y: centerY, t: now });
+  positionBuffer.push({ y: centerY, d: diameter, t: now });
   if (positionBuffer.length > POSITION_BUFFER_SIZE) positionBuffer.shift();
   if (positionBuffer.length < 3) return;
   const n = positionBuffer.length;
   const prev = positionBuffer[n - 2];
   const curr = positionBuffer[n - 1];
   const prevPrev = positionBuffer[n - 3];
+  if (prev.y <= prevPrev.y && prev.y <= curr.y) {
+    lastLocalMinY = prev.y;
+  }
   if (prev.y >= prevPrev.y && prev.y >= curr.y) {
-    if (now - lastJuggleTime >= MIN_JUGGLE_INTERVAL_MS) {
-      lastJuggleTime = now;
+    const dropFromTop = prev.y - (lastLocalMinY != null ? lastLocalMinY : prev.y);
+    const minAmplitude = prev.d / 2;
+    if (dropFromTop >= minAmplitude) {
       setJuggleCount(juggleCount + 1);
     }
   }
@@ -144,7 +147,8 @@ function displayVideoDetections(result) {
     const d = b.height;
     const centerX = b.originX + b.width / 2;
     const centerY = b.originY + b.height / 2;
-    tryCountJuggle(centerY);
+    const diameter = b.height;
+    tryCountJuggle(centerY, diameter);
     ballHighlighter.style.left = (video.offsetWidth - centerX - d / 2) + 'px';
     ballHighlighter.style.top = (centerY - d / 2) + 'px';
     ballHighlighter.style.width = d + 'px';
