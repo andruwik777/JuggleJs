@@ -18,8 +18,11 @@
       margin: 0;
       overflow: hidden;
     }
-    h1 {
-      display: none;
+    #webcamButton {
+      min-width: fit-content;
+      padding-left: 1.25em;
+      padding-right: 1.25em;
+      white-space: nowrap;
     }
     video {
       display: block;
@@ -132,8 +135,6 @@
   </style>
 </head>
 <body>
-  <h1>Object detection</h1>
-
   <section id="demos" class="invisible">
     <div id="liveView" class="videoView">
       <button id="webcamButton" class="mdc-button mdc-button--raised">
