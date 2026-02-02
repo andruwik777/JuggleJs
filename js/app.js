@@ -68,6 +68,7 @@ async function enableCam(event) {
     .getUserMedia(constraints)
     .then(function (stream) {
       video.srcObject = stream;
+      if (juggleCountEl) juggleCountEl.classList.remove('hidden');
       video.addEventListener('loadeddata', predictWebcam);
     })
     .catch((err) => {
@@ -115,7 +116,8 @@ function setJuggleCount(n) {
 
 function tryCountJuggle(centerY) {
   if (centerY == null) return;
-  positionBuffer.push({ y: centerY, t: Date.now() });
+  const now = Date.now();
+  positionBuffer.push({ y: centerY, t: now });
   if (positionBuffer.length > POSITION_BUFFER_SIZE) positionBuffer.shift();
   if (positionBuffer.length < 3) return;
   const n = positionBuffer.length;
@@ -123,7 +125,6 @@ function tryCountJuggle(centerY) {
   const curr = positionBuffer[n - 1];
   const prevPrev = positionBuffer[n - 3];
   if (prev.y >= prevPrev.y && prev.y >= curr.y) {
-    const now = Date.now();
     if (now - lastJuggleTime >= MIN_JUGGLE_INTERVAL_MS) {
       lastJuggleTime = now;
       setJuggleCount(juggleCount + 1);

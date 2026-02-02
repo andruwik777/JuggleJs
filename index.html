@@ -63,6 +63,9 @@
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
       z-index: 3;
     }
+    .juggle-count.hidden {
+      display: none;
+    }
     .timing-stats {
       position: absolute;
       bottom: 8px;
@@ -89,7 +92,7 @@
         <span class="mdc-button__ripple"></span>
         <span class="mdc-button__label">ENABLE WEBCAM</span>
       </button>
-      <div id="juggleCount" class="juggle-count" aria-live="polite">0 набиваний</div>
+      <div id="juggleCount" class="juggle-count hidden" aria-live="polite">0 набиваний</div>
       <video id="webcam" autoplay playsinline></video>
       <div id="timingStats" class="timing-stats" aria-live="polite">
         <span id="detectForVideoMs">detectForVideo: — ms</span>
