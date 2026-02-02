@@ -185,16 +185,24 @@ function displayVideoDetections(result) {
   const detection = result.detections && result.detections[0];
   if (detection && detection.boundingBox) {
     const b = detection.boundingBox;
-    const d = b.height;
+    const vw = video.videoWidth || 1;
+    const vh = video.videoHeight || 1;
+    const dw = video.offsetWidth;
+    const dh = video.offsetHeight;
+    const sx = dw / vw;
+    const sy = dh / vh;
     const centerX = b.originX + b.width / 2;
     const centerY = b.originY + b.height / 2;
+    const centerXDisplay = centerX * sx;
+    const centerYDisplay = centerY * sy;
+    const dDisplay = b.height * Math.min(sx, sy);
     const t = Date.now();
-    pushBallState(centerX, centerY, d, true, t);
+    pushBallState(centerXDisplay, centerYDisplay, dDisplay, true, t);
     tryCountJuggle();
-    ballHighlighter.style.left = (video.offsetWidth - centerX - d / 2) + 'px';
-    ballHighlighter.style.top = (centerY - d / 2) + 'px';
-    ballHighlighter.style.width = d + 'px';
-    ballHighlighter.style.height = d + 'px';
+    ballHighlighter.style.left = (dw - centerXDisplay - dDisplay / 2) + 'px';
+    ballHighlighter.style.top = (centerYDisplay - dDisplay / 2) + 'px';
+    ballHighlighter.style.width = dDisplay + 'px';
+    ballHighlighter.style.height = dDisplay + 'px';
     ballHighlighter.style.display = 'block';
   } else {
     ballHighlighter.style.display = 'none';
