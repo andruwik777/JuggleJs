@@ -32,7 +32,14 @@ const liveView = document.getElementById('liveView');
 const detectForVideoMsEl = document.getElementById('detectForVideoMs');
 const predictWebcamMsEl = document.getElementById('predictWebcamMs');
 const deltaMsEl = document.getElementById('deltaMs');
+const juggleCountEl = document.getElementById('juggleCount');
 let enableWebcamButton;
+
+const POSITION_BUFFER_SIZE = 8;
+const MIN_JUGGLE_INTERVAL_MS = 400;
+let juggleCount = 0;
+let positionBuffer = [];
+let lastJuggleTime = 0;
 
 function hasGetUserMedia() {
   return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
@@ -101,6 +108,29 @@ async function predictWebcam() {
   window.requestAnimationFrame(predictWebcam);
 }
 
+function setJuggleCount(n) {
+  juggleCount = n;
+  if (juggleCountEl) juggleCountEl.textContent = n + ' набиваний';
+}
+
+function tryCountJuggle(centerY) {
+  if (centerY == null) return;
+  positionBuffer.push({ y: centerY, t: Date.now() });
+  if (positionBuffer.length > POSITION_BUFFER_SIZE) positionBuffer.shift();
+  if (positionBuffer.length < 3) return;
+  const n = positionBuffer.length;
+  const prev = positionBuffer[n - 2];
+  const curr = positionBuffer[n - 1];
+  const prevPrev = positionBuffer[n - 3];
+  if (prev.y >= prevPrev.y && prev.y >= curr.y) {
+    const now = Date.now();
+    if (now - lastJuggleTime >= MIN_JUGGLE_INTERVAL_MS) {
+      lastJuggleTime = now;
+      setJuggleCount(juggleCount + 1);
+    }
+  }
+}
+
 function displayVideoDetections(result) {
   if (!ballHighlighter) {
     ballHighlighter = document.createElement('div');
@@ -113,6 +143,7 @@ function displayVideoDetections(result) {
     const d = b.height;
     const centerX = b.originX + b.width / 2;
     const centerY = b.originY + b.height / 2;
+    tryCountJuggle(centerY);
     ballHighlighter.style.left = (video.offsetWidth - centerX - d / 2) + 'px';
     ballHighlighter.style.top = (centerY - d / 2) + 'px';
     ballHighlighter.style.width = d + 'px';
