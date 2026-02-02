@@ -11,13 +11,17 @@ const initializeObjectDetector = async () => {
   const vision = await FilesetResolver.forVisionTasks(
     'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.2/wasm'
   );
+  const MODEL_PATH = './models/model_fp16.tflite';
+  const DETECTION_CATEGORY_NAME = 'Juggling - v7 2022-07-26 4-53pm';
   objectDetector = await ObjectDetector.createFromOptions(vision, {
     baseOptions: {
-      modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite',
+      modelAssetPath: MODEL_PATH,
       delegate: 'GPU'
     },
-    scoreThreshold: 0.5,
-    runningMode: runningMode
+    scoreThreshold: 0.4,
+    maxResults: 1,
+    runningMode: runningMode,
+    categoryAllowlist: [DETECTION_CATEGORY_NAME]
   });
   demosSection.classList.remove('invisible');
 };
