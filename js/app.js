@@ -47,6 +47,11 @@ function hasGetUserMedia() {
 
 let ballHighlighter = null;
 
+/** Snake visualization: frame + dot elements, created once and reused. */
+let snakeFrame = null;
+let snakeDots = [];
+const SNAKE_DOT_SIZE = 5;
+
 if (hasGetUserMedia()) {
   enableWebcamButton = document.getElementById('webcamButton');
   enableWebcamButton.addEventListener('click', enableCam);
@@ -193,5 +198,62 @@ function displayVideoDetections(result) {
     ballHighlighter.style.display = 'block';
   } else {
     ballHighlighter.style.display = 'none';
+  }
+  liveVisualisation();
+}
+
+/**
+ * Draw ballState as a "snake" in a frame at bottom-left: 75vw x 20vh.
+ * Oldest point left, newest right; Y scaled to frame height each frame.
+ */
+function liveVisualisation() {
+  const n = ballState.length;
+  if (n === 0) {
+    if (snakeFrame) snakeFrame.style.display = 'none';
+    return;
+  }
+
+  if (!snakeFrame) {
+    snakeFrame = document.createElement('div');
+    snakeFrame.setAttribute('class', 'snake-frame');
+    liveView.appendChild(snakeFrame);
+  }
+  snakeFrame.style.display = 'block';
+
+  const half = SNAKE_DOT_SIZE / 2;
+  const frameW = snakeFrame.offsetWidth || Math.round(window.innerWidth * 0.75);
+  const frameH = snakeFrame.offsetHeight || Math.round(window.innerHeight * 0.2);
+
+  while (snakeDots.length < n) {
+    const dot = document.createElement('div');
+    dot.setAttribute('class', 'snake-dot');
+    dot.setAttribute('aria-hidden', 'true');
+    snakeFrame.appendChild(dot);
+    snakeDots.push(dot);
+  }
+
+  let minY = ballState[0].y;
+  let maxY = ballState[0].y;
+  for (let i = 1; i < n; i++) {
+    const y = ballState[i].y;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  const rangeY = maxY - minY;
+  const yScale = rangeY > 0 ? 1 / rangeY : 0;
+
+  for (let i = 0; i < n; i++) {
+    const pt = ballState[i];
+    const xFrac = n > 1 ? i / (n - 1) : 0.5;
+    const x = xFrac * frameW;
+    const yFrac = rangeY > 0 ? (pt.y - minY) * yScale : 0.5;
+    const y = (1 - yFrac) * frameH;
+    const el = snakeDots[i];
+    el.style.left = (x - half) + 'px';
+    el.style.top = (y - half) + 'px';
+    el.style.display = 'block';
+  }
+  for (let i = n; i < snakeDots.length; i++) {
+    snakeDots[i].style.display = 'none';
   }
 }
