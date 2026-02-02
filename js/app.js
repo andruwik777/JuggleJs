@@ -41,6 +41,76 @@ let juggleCount = 0;
 let ballState = [];
 let lastLocalMinY = null;
 
+/**
+ * 1D Kalman filter, state [position, velocity, acceleration]. Same model as JuggleNet (KalmanFilter.py).
+ * F = [[1, dt, 0.5*dt^2], [0, 1, dt], [0, 0, 1]], H = [1, 0, 0], we only observe position.
+ */
+function Kalman1D(processVariance, measurementVariance) {
+  this.x = [0, 0, 0];
+  this.P = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+  this.H = [1, 0, 0];
+  this.R = measurementVariance;
+  this.q = processVariance;
+  this.initialised = false;
+}
+
+Kalman1D.prototype.setF = function (dt) {
+  const dt2 = 0.5 * dt * dt;
+  this.F = [1, dt, dt2, 0, 1, dt, 0, 0, 1];
+};
+
+Kalman1D.prototype.update = function (z) {
+  const Hx = this.H[0] * this.x[0] + this.H[1] * this.x[1] + this.H[2] * this.x[2];
+  const y = z - Hx;
+  const HP = [this.P[0], this.P[1], this.P[2]];
+  const S = HP[0] + this.R;
+  const K = [this.P[0] / S, this.P[3] / S, this.P[6] / S];
+  this.x[0] += K[0] * y;
+  this.x[1] += K[1] * y;
+  this.x[2] += K[2] * y;
+  const oneMinusK0 = 1 - K[0];
+  this.P[0] = oneMinusK0 * this.P[0];
+  this.P[1] = oneMinusK0 * this.P[1];
+  this.P[2] = oneMinusK0 * this.P[2];
+  this.P[3] = -K[1] * this.P[0] + this.P[3];
+  this.P[4] = -K[1] * this.P[1] + this.P[4];
+  this.P[5] = -K[1] * this.P[2] + this.P[5];
+  this.P[6] = -K[2] * this.P[0] + this.P[6];
+  this.P[7] = -K[2] * this.P[1] + this.P[7];
+  this.P[8] = -K[2] * this.P[2] + this.P[8];
+  this.initialised = true;
+};
+
+Kalman1D.prototype.predict = function (dt) {
+  if (dt <= 0) return this.x[0];
+  this.setF(dt);
+  const F = this.F;
+  this.x = [
+    F[0] * this.x[0] + F[1] * this.x[1] + F[2] * this.x[2],
+    F[3] * this.x[0] + F[4] * this.x[1] + F[5] * this.x[2],
+    F[6] * this.x[0] + F[7] * this.x[1] + F[8] * this.x[2]
+  ];
+  const P = this.P;
+  const FP = [
+    F[0] * P[0] + F[1] * P[3] + F[2] * P[6], F[0] * P[1] + F[1] * P[4] + F[2] * P[7], F[0] * P[2] + F[1] * P[5] + F[2] * P[8],
+    F[3] * P[0] + F[4] * P[3] + F[5] * P[6], F[3] * P[1] + F[4] * P[4] + F[5] * P[7], F[3] * P[2] + F[4] * P[5] + F[5] * P[8],
+    F[6] * P[0] + F[7] * P[3] + F[8] * P[6], F[6] * P[1] + F[7] * P[4] + F[8] * P[7], F[6] * P[2] + F[7] * P[5] + F[8] * P[8]
+  ];
+  this.P = [
+    FP[0] * F[0] + FP[1] * F[1] + FP[2] * F[2] + this.q, FP[0] * F[3] + FP[1] * F[4] + FP[2] * F[5], FP[0] * F[6] + FP[1] * F[7] + FP[2] * F[8],
+    FP[3] * F[0] + FP[4] * F[1] + FP[5] * F[2], FP[3] * F[3] + FP[4] * F[4] + FP[5] * F[5] + this.q, FP[3] * F[6] + FP[4] * F[7] + FP[5] * F[8],
+    FP[6] * F[0] + FP[7] * F[1] + FP[8] * F[2], FP[6] * F[3] + FP[7] * F[4] + FP[8] * F[5], FP[6] * F[6] + FP[7] * F[7] + FP[8] * F[8] + this.q
+  ];
+  return this.x[0];
+};
+
+/** Ball: two 1D filters (X and Y). */
+const KALMAN_PROCESS_VARIANCE = 0.01;
+const KALMAN_MEASUREMENT_VARIANCE = 0.1;
+let kfBallX = null;
+let kfBallY = null;
+let lastKalmanT = null;
+
 function hasGetUserMedia() {
   return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
 }
@@ -142,33 +212,38 @@ function setJuggleCount(n) {
   if (juggleCountEl) juggleCountEl.textContent = n + ' набиваний';
 }
 
-function pushBallState(x, y, d, f, t) {
-  var vx = 0;
-  var vy = 0;
-  if (ballState.length > 0) {
-    var prev = ballState[ballState.length - 1];
-    var dtSec = (t - prev.t) / 1000;
+/**
+ * @param {boolean} calculatedOnly - true if this point is from Kalman predict only (no detection)
+ */
+function pushBallState(x, y, d, calculatedOnly, t, vx, vy) {
+  let vxOut = vx != null ? vx : 0;
+  let vyOut = vy != null ? vy : 0;
+  if (ballState.length > 0 && vxOut === 0 && vyOut === 0) {
+    const prev = ballState[ballState.length - 1];
+    const dtSec = (t - prev.t) / 1000;
     if (dtSec > 0) {
-      vx = (x - prev.x) / dtSec;
-      vy = (y - prev.y) / dtSec;
+      vxOut = (x - prev.x) / dtSec;
+      vyOut = (y - prev.y) / dtSec;
     }
   }
-  ballState.push({ x: x, y: y, vx: vx, vy: vy, d: d, f: f, t: t });
+  ballState.push({ x, y, vx: vxOut, vy: vyOut, d, calculatedOnly, t });
   if (ballState.length > STATE_BUFFER_CAPACITY) ballState.shift();
 }
 
+/** Count juggles from smoothed trajectory; use only detected points (!calculatedOnly) for peaks. */
 function tryCountJuggle() {
-  if (ballState.length < 3) return;
-  var n = ballState.length;
-  var prev = ballState[n - 2];
-  var curr = ballState[n - 1];
-  var prevPrev = ballState[n - 3];
+  const detected = ballState.filter((e) => !e.calculatedOnly);
+  if (detected.length < 3) return;
+  const n = detected.length;
+  const prev = detected[n - 2];
+  const curr = detected[n - 1];
+  const prevPrev = detected[n - 3];
   if (prev.y <= prevPrev.y && prev.y <= curr.y) {
     lastLocalMinY = prev.y;
   }
   if (prev.y >= prevPrev.y && prev.y >= curr.y) {
-    var dropFromTop = prev.y - (lastLocalMinY != null ? lastLocalMinY : prev.y);
-    var minAmplitude = prev.d / 2;
+    const dropFromTop = prev.y - (lastLocalMinY != null ? lastLocalMinY : prev.y);
+    const minAmplitude = prev.d / 2;
     if (dropFromTop >= minAmplitude) {
       setJuggleCount(juggleCount + 1);
     }
@@ -182,6 +257,10 @@ function displayVideoDetections(result) {
     ballHighlighter.setAttribute('class', 'highlighter');
     container.appendChild(ballHighlighter);
   }
+  const t = Date.now();
+  const dtSec = lastKalmanT != null ? (t - lastKalmanT) / 1000 : 0;
+  lastKalmanT = t;
+
   const detection = result.detections && result.detections[0];
   if (detection && detection.boundingBox) {
     const b = detection.boundingBox;
@@ -196,9 +275,35 @@ function displayVideoDetections(result) {
     const centerXDisplay = centerX * sx;
     const centerYDisplay = centerY * sy;
     const dDisplay = b.height * Math.min(sx, sy);
-    const t = Date.now();
-    pushBallState(centerXDisplay, centerYDisplay, dDisplay, true, t);
+
+    if (!kfBallX) {
+      kfBallX = new Kalman1D(KALMAN_PROCESS_VARIANCE, KALMAN_MEASUREMENT_VARIANCE);
+      kfBallY = new Kalman1D(KALMAN_PROCESS_VARIANCE, KALMAN_MEASUREMENT_VARIANCE);
+    }
+    if (!kfBallX.initialised) {
+      kfBallX.x[0] = centerXDisplay;
+      kfBallX.x[1] = 0;
+      kfBallX.x[2] = 0;
+      kfBallX.initialised = true;
+    }
+    if (!kfBallY.initialised) {
+      kfBallY.x[0] = centerYDisplay;
+      kfBallY.x[1] = 0;
+      kfBallY.x[2] = 0;
+      kfBallY.initialised = true;
+    }
+    kfBallX.update(centerXDisplay);
+    kfBallY.update(centerYDisplay);
+    const smoothedX = kfBallX.x[0];
+    const smoothedY = kfBallY.x[0];
+    const vx = kfBallX.x[1];
+    const vy = kfBallY.x[1];
+    kfBallX.predict(dtSec);
+    kfBallY.predict(dtSec);
+
+    pushBallState(smoothedX, smoothedY, dDisplay, false, t, vx, vy);
     tryCountJuggle();
+
     ballHighlighter.style.left = (dw - centerXDisplay - dDisplay / 2) + 'px';
     ballHighlighter.style.top = (centerYDisplay - dDisplay / 2) + 'px';
     ballHighlighter.style.width = dDisplay + 'px';
@@ -206,6 +311,12 @@ function displayVideoDetections(result) {
     ballHighlighter.style.display = 'block';
   } else {
     ballHighlighter.style.display = 'none';
+    if (kfBallX && kfBallY && kfBallX.initialised) {
+      const predX = kfBallX.predict(dtSec);
+      const predY = kfBallY.predict(dtSec);
+      const d = ballState.length > 0 ? ballState[ballState.length - 1].d : 40;
+      pushBallState(predX, predY, d, true, t);
+    }
   }
   liveSnakeVisualisation();
 }
@@ -260,6 +371,11 @@ function liveSnakeVisualisation() {
     el.style.left = (x - half) + 'px';
     el.style.top = (y - half) + 'px';
     el.style.display = 'block';
+    if (pt.calculatedOnly) {
+      el.classList.add('snake-dot-calculated');
+    } else {
+      el.classList.remove('snake-dot-calculated');
+    }
   }
   for (let i = n; i < snakeDots.length; i++) {
     snakeDots[i].style.display = 'none';
