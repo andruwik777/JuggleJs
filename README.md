@@ -1,6 +1,6 @@
 # Juggle Counter (PoC)
 
-Web app that counts football juggles using the device camera and MediaPipe Object Detection with a custom TFLite model.
+Web app that counts **football juggles** using the device camera and MediaPipe Object Detection with a custom TFLite model.
 
 Inspired by https://github.com/Logan1904/JuggleNet.git
 
