@@ -25,6 +25,9 @@ initializeObjectDetector();
 
 let video = document.getElementById('webcam');
 const liveView = document.getElementById('liveView');
+const detectForVideoMsEl = document.getElementById('detectForVideoMs');
+const predictWebcamMsEl = document.getElementById('predictWebcamMs');
+const deltaMsEl = document.getElementById('deltaMs');
 let enableWebcamButton;
 
 function hasGetUserMedia() {
@@ -63,6 +66,10 @@ async function enableCam(event) {
 
 let lastVideoTime = -1;
 async function predictWebcam() {
+  const t0 = performance.now();
+  let hadNewFrame = false;
+  let detectForVideoMs = 0;
+
   if (runningMode === 'IMAGE') {
     runningMode = 'VIDEO';
     await objectDetector.setOptions({ runningMode: 'VIDEO' });
@@ -71,8 +78,21 @@ async function predictWebcam() {
 
   if (video.currentTime !== lastVideoTime) {
     lastVideoTime = video.currentTime;
+    const t1 = performance.now();
     const detections = objectDetector.detectForVideo(video, startTimeMs);
+    const t2 = performance.now();
+    detectForVideoMs = Math.round(t2 - t1);
+    hadNewFrame = true;
     displayVideoDetections(detections);
+  }
+
+  const t3 = performance.now();
+  const predictWebcamMs = Math.round(t3 - t0);
+  if (hadNewFrame && detectForVideoMsEl && predictWebcamMsEl && deltaMsEl) {
+    const delta = predictWebcamMs - detectForVideoMs;
+    detectForVideoMsEl.textContent = 'detectForVideo: ' + detectForVideoMs + ' ms';
+    predictWebcamMsEl.textContent = 'predictWebcam: ' + predictWebcamMs + ' ms';
+    deltaMsEl.textContent = 'DELTA: ' + delta + ' ms';
   }
   window.requestAnimationFrame(predictWebcam);
 }

@@ -49,6 +49,21 @@
       z-index: 1;
       position: absolute;
     }
+    .timing-stats {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      right: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      font-size: 12px;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 4px 8px;
+      border-radius: 4px;
+      z-index: 3;
+    }
   </style>
 </head>
 <body>
@@ -61,6 +76,11 @@
         <span class="mdc-button__label">ENABLE WEBCAM</span>
       </button>
       <video id="webcam" autoplay playsinline></video>
+      <div id="timingStats" class="timing-stats" aria-live="polite">
+        <span id="detectForVideoMs">detectForVideo: — ms</span>
+        <span id="predictWebcamMs">predictWebcam: — ms</span>
+        <span id="deltaMs">DELTA: — ms</span>
+      </div>
     </div>
   </section>
 
