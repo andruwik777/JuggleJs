@@ -30,9 +30,9 @@ initializeObjectDetector();
 let video = document.getElementById('webcam');
 const liveView = document.getElementById('liveView');
 const videoStage = document.getElementById('videoStage');
-const detectForVideoMsEl = document.getElementById('detectForVideoMs');
-const predictWebcamMsEl = document.getElementById('predictWebcamMs');
-const deltaMsEl = document.getElementById('deltaMs');
+const aiMsEl = document.getElementById('aiMs');
+const postAiMsEl = document.getElementById('postAiMs');
+const totalMsFpsEl = document.getElementById('totalMsFps');
 const juggleCountEl = document.getElementById('juggleCount');
 let enableWebcamButton;
 
@@ -136,6 +136,8 @@ async function enableCam(event) {
   }
 
   enableWebcamButton.classList.add('removed');
+  const wrap = document.getElementById('webcamButtonWrap');
+  if (wrap) wrap.classList.add('removed');
 
   const constraints = { video: true };
 
@@ -198,11 +200,12 @@ async function predictWebcam() {
 
   const t3 = performance.now();
   const predictWebcamMs = Math.round(t3 - t0);
-  if (hadNewFrame && detectForVideoMsEl && predictWebcamMsEl && deltaMsEl) {
-    const delta = predictWebcamMs - detectForVideoMs;
-    detectForVideoMsEl.textContent = 'detectForVideo: ' + detectForVideoMs + ' ms';
-    predictWebcamMsEl.textContent = 'predictWebcam: ' + predictWebcamMs + ' ms';
-    deltaMsEl.textContent = 'DELTA: ' + delta + ' ms';
+  if (hadNewFrame && aiMsEl && postAiMsEl && totalMsFpsEl) {
+    const postAiMs = predictWebcamMs - detectForVideoMs;
+    const fps = predictWebcamMs > 0 ? 1000 / predictWebcamMs : 0;
+    aiMsEl.textContent = 'AI: ' + detectForVideoMs + ' ms';
+    postAiMsEl.textContent = 'PostAI: ' + postAiMs + ' ms';
+    totalMsFpsEl.textContent = 'Total: ' + predictWebcamMs + ' ms / ' + fps.toFixed(1) + ' FPS';
   }
   window.requestAnimationFrame(predictWebcam);
 }

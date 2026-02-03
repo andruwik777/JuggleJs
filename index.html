@@ -38,9 +38,15 @@
     .invisible { opacity: 0.2; }
     .videoView {
       position: relative;
-      float: left;
-      width: 48%;
-      margin: 2% 1%;
+      width: 100%;
+    }
+    .videoView__button-wrap {
+      width: 100%;
+      text-align: center;
+      padding-top: 1rem;
+    }
+    .videoView__button-wrap.removed {
+      display: none;
     }
     .videoView.live-fullscreen {
       position: fixed;
@@ -137,17 +143,19 @@
 <body>
   <section id="demos" class="invisible">
     <div id="liveView" class="videoView">
-      <button id="webcamButton" class="mdc-button mdc-button--raised">
-        <span class="mdc-button__ripple"></span>
-        <span class="mdc-button__label">Start juggle count</span>
-      </button>
+      <div id="webcamButtonWrap" class="videoView__button-wrap">
+        <button id="webcamButton" class="mdc-button mdc-button--raised">
+          <span class="mdc-button__ripple"></span>
+          <span class="mdc-button__label">Start juggle count</span>
+        </button>
+      </div>
       <div id="videoStage" class="video-stage">
         <video id="webcam" autoplay playsinline></video>
         <div id="juggleCount" class="juggle-count hidden" aria-live="polite">0 juggles</div>
         <div id="timingStats" class="timing-stats" aria-live="polite">
-          <span id="detectForVideoMs">detectForVideo: — ms</span>
-          <span id="predictWebcamMs">predictWebcam: — ms</span>
-          <span id="deltaMs">DELTA: — ms</span>
+          <span id="aiMs">AI: — ms</span>
+          <span id="postAiMs">PostAI: — ms</span>
+          <span id="totalMsFps">Total: — ms / — FPS</span>
         </div>
       </div>
     </div>
