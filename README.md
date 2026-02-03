@@ -18,6 +18,6 @@ https://andruwik777.github.io/JuggleJs
 
 Clone the repo and open `index.html` in Chrome or Firefox (or use a local server so the TFLite model loads correctly).
 
-<div style="text-align: center;">
+<p align="center">
   <b>Have fun juggling and go break some personal records! ⚽️🏆</b>
-</div>
+</p>
