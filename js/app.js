@@ -365,8 +365,10 @@ function liveSnakeVisualisation() {
   snakeFrame.style.display = 'block';
 
   const half = SNAKE_DOT_SIZE / 2;
-  const frameW = snakeFrame.offsetWidth || Math.round(window.innerWidth * 0.75);
-  const frameH = snakeFrame.offsetHeight || Math.round(window.innerHeight * 0.2);
+  const widthRatio = 0.75;
+  const heightRatio = 0.2;
+  const frameW = snakeFrame.offsetWidth || Math.round(window.innerWidth * widthRatio);
+  const frameH = snakeFrame.offsetHeight || Math.round(window.innerHeight * heightRatio);
 
   while (snakeDots.length < n) {
     const dot = document.createElement('div');
