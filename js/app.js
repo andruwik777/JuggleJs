@@ -305,7 +305,7 @@ function setJuggleInBallState(result) {
   } else {
     peak.juggleCount = null;
   }
-  peak.topText = peak.juggleCount != null ? String(peak.juggleCount) : '-';
+  peak.topText = peak.juggleCount;
   peak.bottomText = String(result.ratio);
 }
 
