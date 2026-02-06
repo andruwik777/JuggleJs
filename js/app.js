@@ -37,7 +37,7 @@ const totalMsFpsEl = document.getElementById('totalMsFps');
 const juggleCountEl = document.getElementById('juggleCount');
 let enableWebcamButton;
 
-const STATE_BUFFER_CAPACITY = 30;
+const STATE_BUFFER_CAPACITY = 100;
 let juggleCount = 0;
 let ballState = [];
 let lastLocalMinY = null;
