@@ -248,9 +248,10 @@ function setJuggleCount(n) {
  * @param {number} [vx] - Optional velocity X (otherwise derived from previous point)
  * @param {number} [vy] - Optional velocity Y (otherwise derived from previous point)
  * @param {number|null} [juggleCount=null] - Ordinal juggle number when this frame is a counted juggle peak
- * @param {{ line1: string, line2: string }|null} [text=null] - Debug label (line1 e.g. "7" or "-", line2 e.g. "318,2.1")
+ * @param {string|null} [topText=null] - Debug label above dot (e.g. "7" or "-")
+ * @param {string|null} [bottomText=null] - Debug label below dot (e.g. ratio)
  */
-function pushBallState(x, y, d, calculatedOnly, t, vx, vy, juggleCount = null, text = null) {
+function pushBallState(x, y, d, calculatedOnly, t, vx, vy, juggleCount = null, topText = null, bottomText = null) {
   let vxOut = vx != null ? vx : 0;
   let vyOut = vy != null ? vy : 0;
   if (ballState.length > 0 && vxOut === 0 && vyOut === 0) {
@@ -261,14 +262,14 @@ function pushBallState(x, y, d, calculatedOnly, t, vx, vy, juggleCount = null, t
       vyOut = (y - prev.y) / dtSec;
     }
   }
-  ballState.push({ x, y, vx: vxOut, vy: vyOut, d, calculatedOnly, t, juggleCount: juggleCount ?? null, text: text ?? null });
+  ballState.push({ x, y, vx: vxOut, vy: vyOut, d, calculatedOnly, t, juggleCount: juggleCount ?? null, topText: topText ?? null, bottomText: bottomText ?? null });
   if (ballState.length > STATE_BUFFER_CAPACITY) ballState.shift();
 }
 
 /**
  * Check if the latest detected point forms a local max (peak); optionally whether it counts as a juggle.
  * Uses only non-calculated points.
- * @returns {{ isJuggleDetected: boolean, ratio: number|null }} ratio = dropFromTop/minAmplitude (1 decimal), set only at peaks
+ * @returns {{ isJuggleDetected: boolean, ratio: number|null }} ratio = dropFromTop/diameter (1 decimal), set only at peaks
  */
 function isNewJuggleDetected() {
   const detected = ballState.filter((e) => !e.calculatedOnly);
@@ -282,8 +283,8 @@ function isNewJuggleDetected() {
   }
   if (prev.y >= prevPrev.y && prev.y >= curr.y) {
     const dropFromTop = prev.y - (lastLocalMinY != null ? lastLocalMinY : prev.y);
+    const ratio = prev.d > 0 ? Math.round((dropFromTop / prev.d) * 10) / 10 : 0;
     const minAmplitude = prev.d / 2;
-    const ratio = minAmplitude > 0 ? Math.round((dropFromTop / minAmplitude) * 10) / 10 : 0;
     const isJuggleDetected = dropFromTop >= minAmplitude;
     return { isJuggleDetected, ratio };
   }
@@ -304,9 +305,8 @@ function setJuggleInBallState(result) {
   } else {
     peak.juggleCount = null;
   }
-  const line1 = peak.juggleCount != null ? String(peak.juggleCount) : '-';
-  const line2 = Math.round(peak.y * 10) / 10 + ',' + result.ratio;
-  peak.text = { line1, line2 };
+  peak.topText = peak.juggleCount != null ? String(peak.juggleCount) : '-';
+  peak.bottomText = String(result.ratio);
 }
 
 function displayVideoDetections(result) {
@@ -360,7 +360,7 @@ function displayVideoDetections(result) {
     kfBallX.predict(dtSec);
     kfBallY.predict(dtSec);
 
-    pushBallState(smoothedX, smoothedY, dDisplay, false, t, vx, vy, null, null);
+    pushBallState(smoothedX, smoothedY, dDisplay, false, t, vx, vy, null, null, null);
     const juggleResult = isNewJuggleDetected();
     if (juggleResult.ratio != null) setJuggleInBallState(juggleResult);
 
@@ -375,7 +375,7 @@ function displayVideoDetections(result) {
       const predX = kfBallX.predict(dtSec);
       const predY = kfBallY.predict(dtSec);
       const d = ballState.length > 0 ? ballState[ballState.length - 1].d : 40;
-      pushBallState(predX, predY, d, true, t, undefined, undefined, null, null);
+      pushBallState(predX, predY, d, true, t, undefined, undefined, null, null, null);
     }
   }
   liveSnakeVisualisation();
@@ -444,18 +444,27 @@ function liveSnakeVisualisation() {
     } else {
       el.classList.remove('snake-dot-calculated');
     }
-    if (pt.text) {
-      let label = el.querySelector('.snake-dot-label');
-      if (!label) {
-        label = document.createElement('div');
-        label.setAttribute('class', 'snake-dot-label');
-        el.appendChild(label);
+    const hasLabels = pt.topText != null || pt.bottomText != null;
+    let labelTop = el.querySelector('.snake-dot-label-top');
+    let labelBottom = el.querySelector('.snake-dot-label-bottom');
+    if (hasLabels) {
+      if (!labelTop) {
+        labelTop = document.createElement('div');
+        labelTop.setAttribute('class', 'snake-dot-label snake-dot-label-top');
+        el.appendChild(labelTop);
       }
-      label.innerHTML = pt.text.line1 + '<br>' + pt.text.line2;
-      label.style.display = 'block';
+      if (!labelBottom) {
+        labelBottom = document.createElement('div');
+        labelBottom.setAttribute('class', 'snake-dot-label snake-dot-label-bottom');
+        el.appendChild(labelBottom);
+      }
+      labelTop.textContent = pt.topText ?? '';
+      labelBottom.textContent = pt.bottomText ?? '';
+      labelTop.style.display = pt.topText != null ? 'block' : 'none';
+      labelBottom.style.display = pt.bottomText != null ? 'block' : 'none';
     } else {
-      const label = el.querySelector('.snake-dot-label');
-      if (label) label.style.display = 'none';
+      if (labelTop) labelTop.style.display = 'none';
+      if (labelBottom) labelBottom.style.display = 'none';
     }
   }
   for (let i = n; i < snakeDots.length; i++) {

@@ -28,7 +28,9 @@
     .snake-dot { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: #2563eb; box-sizing: border-box; pointer-events: none; }
     .snake-dot-calculated { background: #f80320; }
     .snake-dot-juggle { width: 10px; height: 10px; background: #2feb25; }
-    .snake-dot-label { position: absolute; left: 50%; bottom: 100%; transform: translateX(-50%) translateY(-4px); font-size: 10px; line-height: 1.2; white-space: nowrap; background: #fff; padding: 2px 4px; border-radius: 2px; box-shadow: 0 1px 2px rgba(0,0,0,0.2); pointer-events: none; }
+    .snake-dot-label { position: absolute; left: 50%; transform: translateX(-50%); font-size: 10px; line-height: 1.2; white-space: nowrap; background: #fff; padding: 2px 4px; border-radius: 2px; box-shadow: 0 1px 2px rgba(0,0,0,0.2); pointer-events: none; }
+    .snake-dot-label-top { bottom: 100%; margin-bottom: 4px; }
+    .snake-dot-label-bottom { top: 100%; margin-top: 4px; }
     #testResult { position: fixed; top: 0; left: 0; z-index: 9999; background: #fff; padding: 8px 12px; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
     #testPanel { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10000; display: flex; flex-direction: column; align-items: center; gap: 12px; }
     #testPanel.hidden { display: none; }
