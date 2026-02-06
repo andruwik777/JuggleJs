@@ -28,7 +28,9 @@ To assert juggle count on a fixed MP4 file:
    (Opening the file directly with `file://` may fail due to CORS/model loading; a local server is recommended.)
 4. The page will run the video, run the same detection loop as the live app, and show **PASS** or **FAIL: expected X, got Y** in the top-left corner when the video ends.
 
-**Debug:** Set a breakpoint in DevTools in `runOneDetectionFrame()` in `js/app.js` on the line with `objectDetector.detectForVideo(...)` (the test uses this function only, not `predictWebcam`). When execution pauses there, the video stays on that frame. Playback in test mode is slower than real-time (~0.5x) because each frame is driven by seek → detect.
+**Modes:** Use **"Enable DEBUG mode"** (unchecked by default) only when you need to debug: then the test runs frame-by-frame (seek → detect), so breakpoints in `runOneDetectionFrame()` pause the video, but playback is ~0.5x. With DEBUG unchecked, the test runs in real-time (`video.play()` + detection on each frame) for a faster run.
+
+**Debug:** Set a breakpoint in `runOneDetectionFrame()` in `js/app.js` on the line with `objectDetector.detectForVideo(...)`. Only in DEBUG mode will the video pause when execution stops there.
 
 <p align="center">
   <b>Have fun juggling and go break some personal records! ⚽️🏆</b>

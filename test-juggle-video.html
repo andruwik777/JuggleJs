@@ -30,10 +30,18 @@
     #testResult { position: fixed; top: 0; left: 0; z-index: 9999; background: #fff; padding: 8px 12px; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
     #runTestBtn { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10000; padding: 12px 24px; font-size: 1.25rem; cursor: pointer; }
     #runTestBtn.hidden { display: none; }
+    #testControls { position: fixed; top: 48px; left: 0; z-index: 9998; background: #fff; padding: 8px 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 8px; }
+    #testControls label { cursor: pointer; user-select: none; }
   </style>
 </head>
 <body>
   <div id="testResult">Loading…</div>
+  <div id="testControls" class="hidden">
+    <label>
+      <input type="checkbox" id="debugModeCheckbox" />
+      Enable DEBUG mode
+    </label>
+  </div>
   <button type="button" id="runTestBtn" class="hidden">Run test</button>
   <section id="demos" class="invisible">
     <div id="liveView" class="videoView">
@@ -69,10 +77,13 @@
         window.addEventListener('juggleTestReadyToRun', () => {
           resultEl.textContent = 'Click "Run test" to start (required by browser).';
           runBtn.classList.remove('hidden');
+          document.getElementById('testControls').classList.remove('hidden');
           runBtn.onclick = () => {
             runBtn.classList.add('hidden');
+            document.getElementById('testControls').classList.add('hidden');
             resultEl.textContent = 'Running…';
-            start();
+            const debugMode = document.getElementById('debugModeCheckbox').checked;
+            start(debugMode);
             result.then((actualJuggles) => {
               const pass = actualJuggles === EXPECTED_JUGGLES;
               resultEl.textContent = pass ? 'PASS' : `FAIL: expected ${EXPECTED_JUGGLES}, got ${actualJuggles}`;

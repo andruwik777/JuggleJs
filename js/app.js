@@ -426,7 +426,7 @@ function resetJuggleState() {
  * Run detection on a video file. Returns { start, result } so the test page can call start() from a user
  * click (required by browser autoplay policy). When the debugger is paused in the loop, the video stops.
  * @param {string} videoUrl - URL or path to the MP4 file (e.g. 'test.mp4')
- * @returns {{ start: () => void, result: Promise<number> }} - start() must be called from user click; result resolves with juggle count when video ends
+ * @returns {{ start: (debugMode?: boolean) => void, result: Promise<number> }} - start(debugMode) from user click; debugMode true = frame-driven (breakpoints work, ~0.5x); false = real-time playback
  */
 window.runJuggleTest = function (videoUrl) {
   let resolveResult;
@@ -448,9 +448,9 @@ window.runJuggleTest = function (videoUrl) {
     video.removeEventListener('loadeddata', onLoaded);
     resizeStageToContain();
     window.addEventListener('resize', resizeStageToContain);
-    window.runJuggleTestStart = function start() {
-      window.runJuggleTestStart = null;
-      const TEST_FPS = 30;
+    const TEST_FPS = 30;
+
+    function runDebugMode() {
       let nextTime = 0;
       function step() {
         if (nextTime >= video.duration) {
@@ -468,6 +468,33 @@ window.runJuggleTest = function (videoUrl) {
         }, { once: true });
       }
       step();
+    }
+
+    function runRealtimeMode() {
+      let lastProcessedFrame = -1;
+      function step() {
+        if (video.ended) {
+          if (rafId != null) { cancelAnimationFrame(rafId); rafId = null; }
+          resolveResult(juggleCount);
+          return;
+        }
+        const currentFrame = Math.floor(video.currentTime * TEST_FPS);
+        if (currentFrame > lastProcessedFrame) {
+          lastProcessedFrame = currentFrame;
+          runOneDetectionFrame().then(() => {
+            rafId = requestAnimationFrame(step);
+          });
+        } else {
+          rafId = requestAnimationFrame(step);
+        }
+      }
+      video.play().then(() => { rafId = requestAnimationFrame(step); }).catch((e) => rejectResult(e));
+    }
+
+    window.runJuggleTestStart = function start(debugMode) {
+      window.runJuggleTestStart = null;
+      if (debugMode) runDebugMode();
+      else runRealtimeMode();
     };
     window.dispatchEvent(new Event('juggleTestReadyToRun'));
   }, { once: true });
@@ -476,7 +503,7 @@ window.runJuggleTest = function (videoUrl) {
     if (rejectResult) rejectResult(new Error('Video failed to load'));
   }, { once: true });
   return {
-    start: function () { if (window.runJuggleTestStart) window.runJuggleTestStart(); },
+    start: function (debugMode) { if (window.runJuggleTestStart) window.runJuggleTestStart(debugMode); },
     result
   };
 };
