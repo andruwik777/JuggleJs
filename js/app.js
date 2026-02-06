@@ -282,10 +282,8 @@ function isNewJuggleDetected() {
     lastLocalMinY = prev.y;
   }
   if (prev.y >= prevPrev.y && prev.y >= curr.y) {
-    if (lastLocalMinY == null) return { isJuggleDetected: false, ratio: null };
-    const dropFromTop = prev.y - lastLocalMinY;
-    if (prev.d <= 0) return { isJuggleDetected: false, ratio: null };
-    const ratio = Math.round((dropFromTop / prev.d) * 10) / 10;
+    const dropFromTop = prev.y - (lastLocalMinY != null ? lastLocalMinY : prev.y);
+    const ratio = prev.d > 0 ? Math.round((dropFromTop / prev.d) * 10) / 10 : 0;
     const minAmplitude = prev.d / 2;
     const isJuggleDetected = dropFromTop >= minAmplitude;
     return { isJuggleDetected, ratio };
