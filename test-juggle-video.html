@@ -28,21 +28,24 @@
     .snake-dot { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: #2563eb; box-sizing: border-box; pointer-events: none; }
     .snake-dot-calculated { background: #f80320; }
     #testResult { position: fixed; top: 0; left: 0; z-index: 9999; background: #fff; padding: 8px 12px; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
-    #runTestBtn { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10000; padding: 12px 24px; font-size: 1.25rem; cursor: pointer; }
-    #runTestBtn.hidden { display: none; }
-    #testControls { position: fixed; top: 48px; left: 0; z-index: 9998; background: #fff; padding: 8px 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 8px; }
+    #testPanel { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10000; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    #testPanel.hidden { display: none; }
+    #runTestBtn { padding: 12px 24px; font-size: 1.25rem; cursor: pointer; }
+    #testControls { display: flex; align-items: center; }
     #testControls label { cursor: pointer; user-select: none; }
   </style>
 </head>
 <body>
   <div id="testResult">Loading…</div>
-  <div id="testControls" class="hidden">
-    <label>
-      <input type="checkbox" id="debugModeCheckbox" />
-      Enable DEBUG mode
-    </label>
+  <div id="testPanel" class="hidden">
+    <button type="button" id="runTestBtn">Run test</button>
+    <div id="testControls">
+      <label>
+        <input type="checkbox" id="debugModeCheckbox" />
+        Enable DEBUG mode
+      </label>
+    </div>
   </div>
-  <button type="button" id="runTestBtn" class="hidden">Run test</button>
   <section id="demos" class="invisible">
     <div id="liveView" class="videoView">
       <div id="webcamButtonWrap" class="videoView__button-wrap">
@@ -76,11 +79,9 @@
         const { start, result } = window.runJuggleTest(VIDEO_URL);
         window.addEventListener('juggleTestReadyToRun', () => {
           resultEl.textContent = 'Click "Run test" to start (required by browser).';
-          runBtn.classList.remove('hidden');
-          document.getElementById('testControls').classList.remove('hidden');
+          document.getElementById('testPanel').classList.remove('hidden');
           runBtn.onclick = () => {
-            runBtn.classList.add('hidden');
-            document.getElementById('testControls').classList.add('hidden');
+            document.getElementById('testPanel').classList.add('hidden');
             resultEl.textContent = 'Running…';
             const debugMode = document.getElementById('debugModeCheckbox').checked;
             start(debugMode);
