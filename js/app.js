@@ -179,6 +179,22 @@ function onVideoReady() {
 
 let lastVideoTime = -1;
 let rafId = null;
+
+/**
+ * Run one frame of detection (used by frame-driven video test only).
+ * Set DevTools breakpoint on the detectForVideo line below to pause at this frame; video will stay on this frame.
+ */
+async function runOneDetectionFrame() {
+  if (runningMode === 'IMAGE') {
+    runningMode = 'VIDEO';
+    await objectDetector.setOptions({ runningMode: 'VIDEO' });
+  }
+  const startTimeMs = performance.now();
+  lastVideoTime = video.currentTime;
+  const detections = objectDetector.detectForVideo(video, startTimeMs); // breakpoint here in test
+  displayVideoDetections(detections);
+}
+
 async function predictWebcam() {
   if (video.ended) {
     rafId = null;
@@ -434,18 +450,26 @@ window.runJuggleTest = function (videoUrl) {
     window.addEventListener('resize', resizeStageToContain);
     window.runJuggleTestStart = function start() {
       window.runJuggleTestStart = null;
-      video.play().catch(() => {});
-      predictWebcam();
+      const TEST_FPS = 30;
+      let nextTime = 0;
+      function step() {
+        if (nextTime >= video.duration) {
+          if (rafId != null) { cancelAnimationFrame(rafId); rafId = null; }
+          resolveResult(juggleCount);
+          return;
+        }
+        video.currentTime = nextTime;
+        video.addEventListener('seeked', function onSeeked() {
+          video.removeEventListener('seeked', onSeeked);
+          runOneDetectionFrame().then(() => {
+            nextTime += 1 / TEST_FPS;
+            rafId = requestAnimationFrame(step);
+          });
+        }, { once: true });
+      }
+      step();
     };
     window.dispatchEvent(new Event('juggleTestReadyToRun'));
-  }, { once: true });
-  video.addEventListener('ended', function onEnded() {
-    video.removeEventListener('ended', onEnded);
-    if (rafId != null) {
-      cancelAnimationFrame(rafId);
-      rafId = null;
-    }
-    resolveResult(juggleCount);
   }, { once: true });
   video.addEventListener('error', function onError() {
     video.removeEventListener('error', onError);
