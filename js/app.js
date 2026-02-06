@@ -347,8 +347,8 @@ function displayVideoDetections(result) {
 }
 
 /**
- * Draw ballState as a "snake" in a frame at bottom-left: 75vw x 20vh.
- * Oldest point left, newest right; Y scaled to frame height each frame.
+ * Draw ballState as a "snake" in a frame above the timing stats (AI/PostAI/Total), 5px gap.
+ * Same width as stats block (videoStage), oldest left, newest right; Y scaled to frame height.
  */
 function liveSnakeVisualisation() {
   const n = ballState.length;
@@ -360,15 +360,13 @@ function liveSnakeVisualisation() {
   if (!snakeFrame) {
     snakeFrame = document.createElement('div');
     snakeFrame.setAttribute('class', 'snake-frame');
-    liveView.appendChild(snakeFrame);
+    videoStage.appendChild(snakeFrame);
   }
   snakeFrame.style.display = 'block';
 
   const half = SNAKE_DOT_SIZE / 2;
-  const widthRatio = 0.75;
-  const heightRatio = 0.2;
-  const frameW = snakeFrame.offsetWidth || Math.round(window.innerWidth * widthRatio);
-  const frameH = snakeFrame.offsetHeight || Math.round(window.innerHeight * heightRatio);
+  const frameW = snakeFrame.offsetWidth || videoStage.offsetWidth || 300;
+  const frameH = snakeFrame.offsetHeight || Math.round(window.innerHeight * 0.2);
 
   while (snakeDots.length < n) {
     const dot = document.createElement('div');
