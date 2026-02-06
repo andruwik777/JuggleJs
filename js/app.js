@@ -122,6 +122,7 @@ let ballHighlighter = null;
 let snakeFrame = null;
 let snakeDots = [];
 const SNAKE_DOT_SIZE = 5;
+const SNAKE_DOT_SIZE_JUGGLE = 10;
 
 if (hasGetUserMedia()) {
   enableWebcamButton = document.getElementById('webcamButton');
@@ -238,9 +239,17 @@ function setJuggleCount(n) {
 }
 
 /**
- * @param {boolean} calculatedOnly - true if this point is from Kalman predict only (no detection)
+ * Append one point to the ball trajectory state (used for snake and juggle counting).
+ * @param {number} x - X position (display)
+ * @param {number} y - Y position (display)
+ * @param {number} d - Diameter / size for display
+ * @param {boolean} calculatedOnly - True if from Kalman predict only (no detection)
+ * @param {number} t - Timestamp (ms)
+ * @param {number} [vx] - Optional velocity X (otherwise derived from previous point)
+ * @param {number} [vy] - Optional velocity Y (otherwise derived from previous point)
+ * @param {boolean} [isJuggle=false] - True if this frame was counted as a juggle
  */
-function pushBallState(x, y, d, calculatedOnly, t, vx, vy) {
+function pushBallState(x, y, d, calculatedOnly, t, vx, vy, isJuggle = false) {
   let vxOut = vx != null ? vx : 0;
   let vyOut = vy != null ? vy : 0;
   if (ballState.length > 0 && vxOut === 0 && vyOut === 0) {
@@ -251,14 +260,18 @@ function pushBallState(x, y, d, calculatedOnly, t, vx, vy) {
       vyOut = (y - prev.y) / dtSec;
     }
   }
-  ballState.push({ x, y, vx: vxOut, vy: vyOut, d, calculatedOnly, t });
+  ballState.push({ x, y, vx: vxOut, vy: vyOut, d, calculatedOnly, t, isJuggle: !!isJuggle });
   if (ballState.length > STATE_BUFFER_CAPACITY) ballState.shift();
 }
 
-/** Count juggles from smoothed trajectory; use only detected points (!calculatedOnly) for peaks. */
-function tryCountJuggle() {
+/**
+ * Check if the latest detected point is a new juggle peak (does not update count).
+ * Uses only non-calculated points. Returns true if a new juggle was detected.
+ * @returns {boolean}
+ */
+function isNewJuggleDetected() {
   const detected = ballState.filter((e) => !e.calculatedOnly);
-  if (detected.length < 3) return;
+  if (detected.length < 3) return false;
   const n = detected.length;
   const prev = detected[n - 2];
   const curr = detected[n - 1];
@@ -269,10 +282,14 @@ function tryCountJuggle() {
   if (prev.y >= prevPrev.y && prev.y >= curr.y) {
     const dropFromTop = prev.y - (lastLocalMinY != null ? lastLocalMinY : prev.y);
     const minAmplitude = prev.d / 2;
-    if (dropFromTop >= minAmplitude) {
-      setJuggleCount(juggleCount + 1);
-    }
+    if (dropFromTop >= minAmplitude) return true;
   }
+  return false;
+}
+
+/** Set the last ballState entry as a juggle (isJuggle = true). */
+function setJuggleInBallState() {
+  if (ballState.length > 0) ballState[ballState.length - 1].isJuggle = true;
 }
 
 function displayVideoDetections(result) {
@@ -326,8 +343,11 @@ function displayVideoDetections(result) {
     kfBallX.predict(dtSec);
     kfBallY.predict(dtSec);
 
-    pushBallState(smoothedX, smoothedY, dDisplay, false, t, vx, vy);
-    tryCountJuggle();
+    pushBallState(smoothedX, smoothedY, dDisplay, false, t, vx, vy, false);
+    if (isNewJuggleDetected()) {
+      setJuggleInBallState();
+      setJuggleCount(juggleCount + 1);
+    }
 
     ballHighlighter.style.left = (dw - centerXDisplay - dDisplay / 2) + 'px';
     ballHighlighter.style.top = (centerYDisplay - dDisplay / 2) + 'px';
@@ -340,7 +360,7 @@ function displayVideoDetections(result) {
       const predX = kfBallX.predict(dtSec);
       const predY = kfBallY.predict(dtSec);
       const d = ballState.length > 0 ? ballState[ballState.length - 1].d : 40;
-      pushBallState(predX, predY, d, true, t);
+      pushBallState(predX, predY, d, true, t, undefined, undefined, false);
     }
   }
   liveSnakeVisualisation();
@@ -364,7 +384,6 @@ function liveSnakeVisualisation() {
   }
   snakeFrame.style.display = 'block';
 
-  const half = SNAKE_DOT_SIZE / 2;
   const frameW = snakeFrame.offsetWidth || videoStage.offsetWidth || 300;
   const frameH = snakeFrame.offsetHeight || Math.round(window.innerHeight * 0.2);
 
@@ -388,6 +407,8 @@ function liveSnakeVisualisation() {
 
   for (let i = 0; i < n; i++) {
     const pt = ballState[i];
+    const dotSize = pt.isJuggle ? SNAKE_DOT_SIZE_JUGGLE : SNAKE_DOT_SIZE;
+    const half = dotSize / 2;
     const xFrac = n > 1 ? i / (n - 1) : 0.5;
     const x = xFrac * frameW;
     const yFrac = rangeY > 0 ? (pt.y - minY) * yScale : 0.5;
@@ -395,7 +416,14 @@ function liveSnakeVisualisation() {
     const el = snakeDots[i];
     el.style.left = (x - half) + 'px';
     el.style.top = (y - half) + 'px';
+    el.style.width = dotSize + 'px';
+    el.style.height = dotSize + 'px';
     el.style.display = 'block';
+    if (pt.isJuggle) {
+      el.classList.add('snake-dot-juggle');
+    } else {
+      el.classList.remove('snake-dot-juggle');
+    }
     if (pt.calculatedOnly) {
       el.classList.add('snake-dot-calculated');
     } else {
