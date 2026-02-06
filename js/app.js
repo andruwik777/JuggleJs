@@ -247,9 +247,10 @@ function setJuggleCount(n) {
  * @param {number} t - Timestamp (ms)
  * @param {number} [vx] - Optional velocity X (otherwise derived from previous point)
  * @param {number} [vy] - Optional velocity Y (otherwise derived from previous point)
- * @param {boolean} [isJuggle=false] - True if this frame was counted as a juggle
+ * @param {number|null} [juggleCount=null] - Ordinal juggle number when this frame is a counted juggle peak
+ * @param {{ line1: string, line2: string }|null} [text=null] - Debug label (line1 e.g. "7" or "-", line2 e.g. "318,2.1")
  */
-function pushBallState(x, y, d, calculatedOnly, t, vx, vy, isJuggle = false) {
+function pushBallState(x, y, d, calculatedOnly, t, vx, vy, juggleCount = null, text = null) {
   let vxOut = vx != null ? vx : 0;
   let vyOut = vy != null ? vy : 0;
   if (ballState.length > 0 && vxOut === 0 && vyOut === 0) {
@@ -260,18 +261,18 @@ function pushBallState(x, y, d, calculatedOnly, t, vx, vy, isJuggle = false) {
       vyOut = (y - prev.y) / dtSec;
     }
   }
-  ballState.push({ x, y, vx: vxOut, vy: vyOut, d, calculatedOnly, t, isJuggle: !!isJuggle });
+  ballState.push({ x, y, vx: vxOut, vy: vyOut, d, calculatedOnly, t, juggleCount: juggleCount ?? null, text: text ?? null });
   if (ballState.length > STATE_BUFFER_CAPACITY) ballState.shift();
 }
 
 /**
- * Check if the latest detected point is a new juggle peak (does not update count).
- * Uses only non-calculated points. Returns true if a new juggle was detected.
- * @returns {boolean}
+ * Check if the latest detected point forms a local max (peak); optionally whether it counts as a juggle.
+ * Uses only non-calculated points.
+ * @returns {{ isJuggleDetected: boolean, ratio: number|null }} ratio = dropFromTop/minAmplitude (1 decimal), set only at peaks
  */
 function isNewJuggleDetected() {
   const detected = ballState.filter((e) => !e.calculatedOnly);
-  if (detected.length < 3) return false;
+  if (detected.length < 3) return { isJuggleDetected: false, ratio: null };
   const n = detected.length;
   const prev = detected[n - 2];
   const curr = detected[n - 1];
@@ -282,18 +283,30 @@ function isNewJuggleDetected() {
   if (prev.y >= prevPrev.y && prev.y >= curr.y) {
     const dropFromTop = prev.y - (lastLocalMinY != null ? lastLocalMinY : prev.y);
     const minAmplitude = prev.d / 2;
-    if (dropFromTop >= minAmplitude) {
-      return true;
-    } else {
-      return false;
-    }
+    const ratio = minAmplitude > 0 ? Math.round((dropFromTop / minAmplitude) * 10) / 10 : 0;
+    const isJuggleDetected = dropFromTop >= minAmplitude;
+    return { isJuggleDetected, ratio };
   }
-  return false;
+  return { isJuggleDetected: false, ratio: null };
 }
 
-/** Set the last ballState entry as a juggle (isJuggle = true). */
-function setJuggleInBallState() {
-  if (ballState.length > 0) ballState[ballState.length - 1].isJuggle = true;
+/**
+ * Update the peak point (second-to-last in ballState) with juggleCount and text from isNewJuggleDetected result.
+ * @param {{ isJuggleDetected: boolean, ratio: number|null }} result
+ */
+function setJuggleInBallState(result) {
+  if (result.ratio == null || ballState.length < 2) return;
+  const peak = ballState[ballState.length - 2];
+  if (result.isJuggleDetected) {
+    juggleCount++;
+    setJuggleCount(juggleCount);
+    peak.juggleCount = juggleCount;
+  } else {
+    peak.juggleCount = null;
+  }
+  const line1 = peak.juggleCount != null ? String(peak.juggleCount) : '-';
+  const line2 = Math.round(peak.y * 10) / 10 + ',' + result.ratio;
+  peak.text = { line1, line2 };
 }
 
 function displayVideoDetections(result) {
@@ -347,11 +360,9 @@ function displayVideoDetections(result) {
     kfBallX.predict(dtSec);
     kfBallY.predict(dtSec);
 
-    pushBallState(smoothedX, smoothedY, dDisplay, false, t, vx, vy, false);
-    if (isNewJuggleDetected()) {
-      setJuggleInBallState();
-      setJuggleCount(juggleCount + 1);
-    }
+    pushBallState(smoothedX, smoothedY, dDisplay, false, t, vx, vy, null, null);
+    const juggleResult = isNewJuggleDetected();
+    if (juggleResult.ratio != null) setJuggleInBallState(juggleResult);
 
     ballHighlighter.style.left = (dw - centerXDisplay - dDisplay / 2) + 'px';
     ballHighlighter.style.top = (centerYDisplay - dDisplay / 2) + 'px';
@@ -364,7 +375,7 @@ function displayVideoDetections(result) {
       const predX = kfBallX.predict(dtSec);
       const predY = kfBallY.predict(dtSec);
       const d = ballState.length > 0 ? ballState[ballState.length - 1].d : 40;
-      pushBallState(predX, predY, d, true, t, undefined, undefined, false);
+      pushBallState(predX, predY, d, true, t, undefined, undefined, null, null);
     }
   }
   liveSnakeVisualisation();
@@ -411,7 +422,7 @@ function liveSnakeVisualisation() {
 
   for (let i = 0; i < n; i++) {
     const pt = ballState[i];
-    const dotSize = pt.isJuggle ? SNAKE_DOT_SIZE_JUGGLE : SNAKE_DOT_SIZE;
+    const dotSize = pt.juggleCount != null ? SNAKE_DOT_SIZE_JUGGLE : SNAKE_DOT_SIZE;
     const half = dotSize / 2;
     const xFrac = n > 1 ? i / (n - 1) : 0.5;
     const x = xFrac * frameW;
@@ -423,7 +434,7 @@ function liveSnakeVisualisation() {
     el.style.width = dotSize + 'px';
     el.style.height = dotSize + 'px';
     el.style.display = 'block';
-    if (pt.isJuggle) {
+    if (pt.juggleCount != null) {
       el.classList.add('snake-dot-juggle');
     } else {
       el.classList.remove('snake-dot-juggle');
@@ -432,6 +443,19 @@ function liveSnakeVisualisation() {
       el.classList.add('snake-dot-calculated');
     } else {
       el.classList.remove('snake-dot-calculated');
+    }
+    if (pt.text) {
+      let label = el.querySelector('.snake-dot-label');
+      if (!label) {
+        label = document.createElement('div');
+        label.setAttribute('class', 'snake-dot-label');
+        el.appendChild(label);
+      }
+      label.innerHTML = pt.text.line1 + '<br>' + pt.text.line2;
+      label.style.display = 'block';
+    } else {
+      const label = el.querySelector('.snake-dot-label');
+      if (label) label.style.display = 'none';
     }
   }
   for (let i = n; i < snakeDots.length; i++) {
