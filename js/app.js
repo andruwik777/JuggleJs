@@ -24,6 +24,7 @@ const initializeObjectDetector = async () => {
     categoryAllowlist: [DETECTION_CATEGORY_NAME]
   });
   demosSection.classList.remove('invisible');
+  window.dispatchEvent(new Event('juggleAppReady'));
 };
 initializeObjectDetector();
 
@@ -177,7 +178,12 @@ function onVideoReady() {
 }
 
 let lastVideoTime = -1;
+let rafId = null;
 async function predictWebcam() {
+  if (video.ended) {
+    rafId = null;
+    return;
+  }
   const t0 = performance.now();
   let hadNewFrame = false;
   let detectForVideoMs = 0;
@@ -207,7 +213,7 @@ async function predictWebcam() {
     postAiMsEl.textContent = 'PostAI: ' + postAiMs + ' ms';
     totalMsFpsEl.textContent = 'Total: ' + predictWebcamMs + ' ms / ' + fps.toFixed(1) + ' FPS';
   }
-  window.requestAnimationFrame(predictWebcam);
+  rafId = window.requestAnimationFrame(predictWebcam);
 }
 
 function setJuggleCount(n) {
@@ -384,3 +390,69 @@ function liveSnakeVisualisation() {
     snakeDots[i].style.display = 'none';
   }
 }
+
+function resetJuggleState() {
+  juggleCount = 0;
+  ballState.length = 0;
+  lastLocalMinY = null;
+  kfBallX = null;
+  kfBallY = null;
+  lastKalmanT = null;
+  lastVideoTime = -1;
+  if (rafId != null) {
+    cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+  if (juggleCountEl) juggleCountEl.textContent = '0 juggles';
+}
+
+/**
+ * Run detection on a video file. Returns { start, result } so the test page can call start() from a user
+ * click (required by browser autoplay policy). When the debugger is paused in the loop, the video stops.
+ * @param {string} videoUrl - URL or path to the MP4 file (e.g. 'test.mp4')
+ * @returns {{ start: () => void, result: Promise<number> }} - start() must be called from user click; result resolves with juggle count when video ends
+ */
+window.runJuggleTest = function (videoUrl) {
+  let resolveResult;
+  let rejectResult;
+  const result = new Promise((resolve, reject) => { resolveResult = resolve; rejectResult = reject; });
+  if (!objectDetector) {
+    return { start: () => {}, result: Promise.reject(new Error('Detector not ready')) };
+  }
+  resetJuggleState();
+  document.body.classList.add('live-active');
+  liveView.classList.add('live-fullscreen');
+  const wrap = document.getElementById('webcamButtonWrap');
+  if (wrap) wrap.classList.add('removed');
+  if (juggleCountEl) juggleCountEl.classList.remove('hidden');
+
+  video.src = videoUrl;
+  video.load();
+  video.addEventListener('loadeddata', function onLoaded() {
+    video.removeEventListener('loadeddata', onLoaded);
+    resizeStageToContain();
+    window.addEventListener('resize', resizeStageToContain);
+    window.runJuggleTestStart = function start() {
+      window.runJuggleTestStart = null;
+      video.play().catch(() => {});
+      predictWebcam();
+    };
+    window.dispatchEvent(new Event('juggleTestReadyToRun'));
+  }, { once: true });
+  video.addEventListener('ended', function onEnded() {
+    video.removeEventListener('ended', onEnded);
+    if (rafId != null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+    resolveResult(juggleCount);
+  }, { once: true });
+  video.addEventListener('error', function onError() {
+    video.removeEventListener('error', onError);
+    if (rejectResult) rejectResult(new Error('Video failed to load'));
+  }, { once: true });
+  return {
+    start: function () { if (window.runJuggleTestStart) window.runJuggleTestStart(); },
+    result
+  };
+};
