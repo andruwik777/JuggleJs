@@ -282,7 +282,11 @@ function isNewJuggleDetected() {
   if (prev.y >= prevPrev.y && prev.y >= curr.y) {
     const dropFromTop = prev.y - (lastLocalMinY != null ? lastLocalMinY : prev.y);
     const minAmplitude = prev.d / 2;
-    if (dropFromTop >= minAmplitude) return true;
+    if (dropFromTop >= minAmplitude) {
+      return true;
+    } else {
+      return false;
+    }
   }
   return false;
 }
