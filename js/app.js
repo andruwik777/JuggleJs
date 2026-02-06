@@ -39,7 +39,6 @@ let enableWebcamButton;
 
 const STATE_BUFFER_CAPACITY = Math.floor(window.innerWidth / 10);
 console.log('STATE_BUFFER_CAPACITY', STATE_BUFFER_CAPACITY);
-alert(STATE_BUFFER_CAPACITY);
 let juggleCount = 0;
 let ballState = [];
 let lastLocalMinY = null;
