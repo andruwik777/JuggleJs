@@ -20,13 +20,7 @@ Clone the repo and open `index.html` in Chrome or Firefox (or use a local server
 
 ## Video test (pure JS, no framework)
 
-To assert juggle count on a fixed MP4 file:
-
-1. Put your video in the repo root as `test.mp4` (or set `VIDEO_URL` in the test page).
-2. In `test-juggle-video.html`, set `EXPECTED_JUGGLES` to the expected count for that video.
-3. Serve the repo from root (e.g. `npx serve .` or open via GitHub Pages) and open `test-juggle-video.html` in the browser.  
-   (Opening the file directly with `file://` may fail due to CORS/model loading; a local server is recommended.)
-4. The page will run the video, run the same detection loop as the live app, and show **PASS** or **FAIL: expected X, got Y** in the top-left corner when the video ends.
+https://andruwik777.github.io/JuggleJs/test-juggle-video.html
 
 **Modes:** Use **"Enable DEBUG mode"** (unchecked by default) only when you need to debug: then the test runs frame-by-frame (seek → detect), so breakpoints in `runOneDetectionFrame()` pause the video, but playback is ~0.5x. With DEBUG unchecked, the test runs in real-time (`video.play()` + detection on each frame) for a faster run.
 
