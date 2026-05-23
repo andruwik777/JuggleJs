@@ -35,7 +35,7 @@
     #testPanel { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10000; display: flex; flex-direction: column; align-items: center; gap: 12px; }
     #testPanel.hidden { display: none; }
     #runTestBtn { padding: 12px 24px; font-size: 1.25rem; cursor: pointer; }
-    #testControls { display: flex; align-items: center; }
+    #testControls { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
     #testControls label { cursor: pointer; user-select: none; }
   </style>
 </head>
@@ -47,6 +47,10 @@
       <label>
         <input type="checkbox" id="debugModeCheckbox" />
         Enable DEBUG mode
+      </label>
+      <label>
+        <input type="checkbox" id="voiceCountCheckbox" />
+        Voice count
       </label>
     </div>
   </div>

@@ -164,9 +164,31 @@
       top: 100%;
       margin-top: 4px;
     }
+    .voice-count-control {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 10001;
+      font-size: 14px;
+      color: #3d3d3d;
+      background: rgba(255, 255, 255, 0.92);
+      padding: 8px 12px;
+      border-radius: 6px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+    }
+    .voice-count-control label {
+      cursor: pointer;
+      user-select: none;
+    }
   </style>
 </head>
 <body>
+  <div id="voiceCountControl" class="voice-count-control">
+    <label>
+      <input type="checkbox" id="voiceCountCheckbox" />
+      Voice count
+    </label>
+  </div>
   <section id="demos" class="invisible">
     <div id="liveView" class="videoView">
       <div id="webcamButtonWrap" class="videoView__button-wrap">

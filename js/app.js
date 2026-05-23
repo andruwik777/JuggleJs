@@ -35,7 +35,39 @@ const aiMsEl = document.getElementById('aiMs');
 const postAiMsEl = document.getElementById('postAiMs');
 const totalMsFpsEl = document.getElementById('totalMsFps');
 const juggleCountEl = document.getElementById('juggleCount');
+const voiceCountCheckbox = document.getElementById('voiceCountCheckbox');
 let enableWebcamButton;
+
+const JUGGLE_COUNT_WORDS = [
+  'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+  'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen', 'Twenty',
+];
+let preferredVoice = null;
+
+function initVoiceCount() {
+  if (typeof speechSynthesis === 'undefined') return;
+  const pickVoice = () => {
+    const voices = speechSynthesis.getVoices();
+    preferredVoice = voices.find((v) => v.lang.startsWith('en') && v.localService)
+      ?? voices.find((v) => v.lang.startsWith('en'))
+      ?? null;
+  };
+  pickVoice();
+  speechSynthesis.addEventListener('voiceschanged', pickVoice);
+}
+
+function speakJuggleCount(n) {
+  if (typeof speechSynthesis === 'undefined') return;
+  const word = JUGGLE_COUNT_WORDS[n - 1] ?? String(n);
+  speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(word);
+  utterance.lang = 'en-US';
+  utterance.rate = 1.1;
+  if (preferredVoice) utterance.voice = preferredVoice;
+  speechSynthesis.speak(utterance);
+}
+
+initVoiceCount();
 
 const STATE_BUFFER_CAPACITY = Math.floor(window.innerWidth / 5);
 console.log('STATE_BUFFER_CAPACITY', STATE_BUFFER_CAPACITY);
@@ -237,6 +269,7 @@ async function predictWebcam() {
 function setJuggleCount(n) {
   juggleCount = n;
   if (juggleCountEl) juggleCountEl.textContent = n + ' juggles';
+  if (voiceCountCheckbox?.checked) speakJuggleCount(n);
 }
 
 /**
