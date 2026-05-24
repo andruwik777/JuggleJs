@@ -395,22 +395,28 @@ if (isLiveWebcamPage()) {
 
 initializeObjectDetector();
 
+let videoReadyHandled = false;
+
 async function enableCam() {
   const constraints = { video: { facingMode: 'user' } };
 
-  navigator.mediaDevices
-    .getUserMedia(constraints)
-    .then(function (stream) {
-      video.srcObject = stream;
-      demosSection.classList.remove('invisible');
-      if (juggleCountEl) juggleCountEl.classList.remove('hidden');
-      document.body.classList.add('live-active');
-      liveView.classList.add('live-fullscreen');
-      video.addEventListener('loadeddata', onVideoReady);
-    })
-    .catch((err) => {
-      console.error(err);
-    });
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    video.srcObject = stream;
+    video.muted = true;
+    demosSection.classList.remove('invisible');
+    if (juggleCountEl) juggleCountEl.classList.remove('hidden');
+    document.body.classList.add('live-active');
+    liveView.classList.add('live-fullscreen');
+    await video.play();
+    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+      onVideoReady();
+    } else {
+      video.addEventListener('loadeddata', onVideoReady, { once: true });
+    }
+  } catch (err) {
+    console.error(err);
+  }
 }
 
 function resizeStageToContain() {
@@ -429,6 +435,8 @@ function resizeStageToContain() {
 }
 
 function onVideoReady() {
+  if (videoReadyHandled) return;
+  videoReadyHandled = true;
   resizeStageToContain();
   window.addEventListener('resize', resizeStageToContain);
   predictWebcam();
