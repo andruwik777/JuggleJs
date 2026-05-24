@@ -22,11 +22,6 @@ const settingsOverlay = document.getElementById('settingsOverlay');
 const settingsCloseBtn = document.getElementById('settingsCloseBtn');
 const settingsDoneBtn = document.getElementById('settingsDoneBtn');
 const voiceCountCheckbox = document.getElementById('voiceCountCheckbox');
-const loadOverlay = document.getElementById('loadOverlay');
-const loadLabel = document.getElementById('loadLabel');
-const loadFill = document.getElementById('loadFill');
-const loadPercent = document.getElementById('loadPercent');
-const loadTrack = loadOverlay?.querySelector('.load-track');
 
 const STATE_BUFFER_CAPACITY = Math.floor(window.innerWidth / 5);
 const KALMAN_PROCESS_VARIANCE = 0.01;
@@ -55,7 +50,6 @@ const STATE = {
   lastLocalMinY: null,
   kalman: { x: null, y: null, lastT: null },
   settings: { voice: false },
-  loadStatus: 'loading',
   lastVideoTime: -1,
   autoPauseHintUntil: 0,
 };
@@ -166,25 +160,6 @@ function isVoiceEnabled() {
   return voiceCountCheckbox?.checked ?? false;
 }
 
-function setLoadProgress(percent, label) {
-  if (loadFill) loadFill.style.width = percent + '%';
-  if (loadPercent) loadPercent.textContent = percent + '%';
-  if (loadLabel && label) loadLabel.textContent = label;
-  if (loadTrack) loadTrack.setAttribute('aria-valuenow', String(percent));
-}
-
-function hideLoadOverlay() {
-  if (loadOverlay) loadOverlay.classList.add('hidden');
-}
-
-function showLoadOverlay() {
-  if (loadOverlay) loadOverlay.classList.remove('hidden');
-}
-
-function isAppReady() {
-  return STATE.loadStatus === 'ready';
-}
-
 function updateSessionUI() {
   if (!isLiveWebcamPage()) return;
 
@@ -193,8 +168,6 @@ function updateSessionUI() {
   if (STATE.autoPauseHintUntil > 0 && Date.now() > STATE.autoPauseHintUntil) {
     hideAutoPauseHint();
   }
-
-  const loading = STATE.loadStatus !== 'ready';
 
   if (sessionPrimaryBtn) {
     if (STATE.session === 'notRunning') {
@@ -210,15 +183,10 @@ function updateSessionUI() {
       sessionPrimaryBtn.title = 'Resume';
       sessionPrimaryBtn.setAttribute('aria-label', 'Resume');
     }
-    sessionPrimaryBtn.disabled = loading && STATE.session !== 'running';
   }
 
   if (sessionStopBtn) {
     sessionStopBtn.disabled = STATE.session === 'notRunning';
-  }
-
-  if (sessionMenuBtn) {
-    sessionMenuBtn.disabled = loading;
   }
 
   if (sessionRecEl && sessionTimerEl) {
@@ -241,7 +209,6 @@ function updateSessionUI() {
 }
 
 function startSession() {
-  if (!isAppReady()) return;
   resetTrackingState();
   STATE.session = 'running';
   STATE.juggleCount = 0;
@@ -339,70 +306,45 @@ function initSessionUI() {
 initSessionUI();
 
 const initializeObjectDetector = async () => {
-  try {
-    if (isLiveWebcamPage()) {
-      setLoadProgress(0, 'Loading engine…');
-    }
-    const vision = await FilesetResolver.forVisionTasks(
-      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.2/wasm'
-    );
-    if (isLiveWebcamPage()) {
-      setLoadProgress(50, 'Loading model…');
-    }
-    const MODEL_PATH = './models/model_fp16.tflite';
-    const DETECTION_CATEGORY_NAME = 'Juggling - v7 2022-07-26 4-53pm';
-    objectDetector = await ObjectDetector.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath: MODEL_PATH,
-        delegate: 'GPU'
-      },
-      scoreThreshold: 0.4,
-      maxResults: 1,
-      runningMode: runningMode,
-      categoryAllowlist: [DETECTION_CATEGORY_NAME]
-    });
-    STATE.loadStatus = 'ready';
-    if (isLiveWebcamPage()) {
-      setLoadProgress(100, 'Ready');
-      hideLoadOverlay();
-      updateSessionUI();
-    }
-    demosSection.classList.remove('invisible');
-    window.dispatchEvent(new Event('juggleAppReady'));
-  } catch (err) {
-    console.error(err);
-    STATE.loadStatus = 'error';
-    if (isLiveWebcamPage()) {
-      setLoadProgress(0, 'Failed to load detector');
-      updateSessionUI();
-    }
-    window.dispatchEvent(new Event('juggleAppReady'));
-  }
-};
-
-if (isLiveWebcamPage()) {
-  document.body.classList.add('live-active');
-  liveView.classList.add('live-fullscreen');
-  showLoadOverlay();
-  setLoadProgress(0, 'Loading engine…');
-  updateSessionUI();
-  if (hasGetUserMedia()) {
+  const vision = await FilesetResolver.forVisionTasks(
+    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.2/wasm'
+  );
+  const MODEL_PATH = './models/model_fp16.tflite';
+  const DETECTION_CATEGORY_NAME = 'Juggling - v7 2022-07-26 4-53pm';
+  objectDetector = await ObjectDetector.createFromOptions(vision, {
+    baseOptions: {
+      modelAssetPath: MODEL_PATH,
+      delegate: 'GPU'
+    },
+    scoreThreshold: 0.4,
+    maxResults: 1,
+    runningMode: runningMode,
+    categoryAllowlist: [DETECTION_CATEGORY_NAME]
+  });
+  demosSection.classList.remove('invisible');
+  window.dispatchEvent(new Event('juggleAppReady'));
+  if (isLiveWebcamPage() && hasGetUserMedia()) {
     enableCam();
-  } else {
+  } else if (isLiveWebcamPage()) {
     console.warn('getUserMedia() is not supported by your browser');
   }
-}
-
+};
 initializeObjectDetector();
 
+if (hasGetUserMedia() && isLiveWebcamPage()) {
+  document.body.classList.add('live-active');
+  liveView.classList.add('live-fullscreen');
+}
+
 async function enableCam() {
+  if (!objectDetector) return;
+
   const constraints = { video: { facingMode: 'user' } };
 
   navigator.mediaDevices
     .getUserMedia(constraints)
     .then(function (stream) {
       video.srcObject = stream;
-      demosSection.classList.remove('invisible');
       if (juggleCountEl) juggleCountEl.classList.remove('hidden');
       document.body.classList.add('live-active');
       liveView.classList.add('live-fullscreen');
