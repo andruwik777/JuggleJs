@@ -4,24 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Object detection - MediaPipe</title>
-  <link href="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.css" rel="stylesheet">
-  <script src="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
   <style>
     body {
       font-family: roboto, system-ui, sans-serif;
-      margin: 2em;
-      color: #3d3d3d;
-      --mdc-theme-primary: #007f8b;
-      --mdc-theme-on-primary: #f1f3f4;
-    }
-    body.live-active {
       margin: 0;
-    }
-    #webcamButton {
-      min-width: fit-content;
-      padding-left: 1.25em;
-      padding-right: 1.25em;
-      white-space: nowrap;
+      color: #3d3d3d;
     }
     video {
       display: block;
@@ -33,19 +20,10 @@
       -moz-transform: rotateY(180deg);
     }
     section { opacity: 1; transition: opacity 500ms ease-in-out; }
-    .mdc-button.mdc-button--raised.removed { display: none; }
     .invisible { opacity: 0.2; }
     .videoView {
       position: relative;
       width: 100%;
-    }
-    .videoView__button-wrap {
-      width: 100%;
-      text-align: center;
-      padding-top: 1rem;
-    }
-    .videoView__button-wrap.removed {
-      display: none;
     }
     .videoView.live-fullscreen {
       position: fixed;
@@ -59,16 +37,6 @@
       justify-content: center;
       z-index: 100;
     }
-    .videoView p {
-      position: absolute;
-      padding: 5px;
-      background-color: #007f8b;
-      color: #fff;
-      border: 1px dashed rgba(255, 255, 255, 0.7);
-      z-index: 2;
-      font-size: 12px;
-      margin: 0;
-    }
     .video-stage {
       position: relative;
       flex-shrink: 0;
@@ -81,23 +49,180 @@
       position: absolute;
       box-sizing: border-box;
     }
-    .juggle-count {
-      position: absolute;
-      top: 12px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: inline-block;
-      padding: 8px 16px;
-      font-size: 1.5rem;
+    .session-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 10001;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 12px;
+      padding-top: max(10px, env(safe-area-inset-top));
+      background: rgba(0, 0, 0, 0.55);
+      box-sizing: border-box;
+    }
+    .session-bar__left,
+    .session-bar__right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      min-width: 0;
+    }
+    .session-bar__right {
+      justify-content: flex-end;
+    }
+    .session-bar__center {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 1 auto;
+    }
+    .session-btn {
+      width: 44px;
+      height: 44px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .session-btn:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
+    .session-btn:not(:disabled):active {
+      background: rgba(255, 255, 255, 0.28);
+    }
+    .session-rec {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 14px;
+      font-variant-numeric: tabular-nums;
+      color: rgba(255, 255, 255, 0.85);
+      white-space: nowrap;
+    }
+    .session-rec.hidden {
+      display: none;
+    }
+    .session-rec-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ef4444;
+      flex-shrink: 0;
+    }
+    .session-rec--running .session-rec-dot {
+      animation: rec-pulse 1.2s ease-in-out infinite;
+    }
+    .session-rec--paused .session-rec-dot {
+      background: #9ca3af;
+      animation: none;
+    }
+    .session-rec--paused {
+      color: rgba(255, 255, 255, 0.55);
+    }
+    @keyframes rec-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.35; }
+    }
+    .session-count {
+      font-size: 2rem;
       font-weight: bold;
       color: #fff;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
-      background: rgba(0, 0, 0, 0.6);
-      border-radius: 6px;
-      z-index: 3;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+      font-variant-numeric: tabular-nums;
+      min-width: 2ch;
+      text-align: center;
     }
-    .juggle-count.hidden {
+    .session-count--paused {
+      opacity: 0.55;
+    }
+    .session-hint {
+      position: fixed;
+      top: calc(64px + env(safe-area-inset-top));
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10001;
+      padding: 6px 14px;
+      font-size: 13px;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.72);
+      border-radius: 6px;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    .session-hint.hidden {
       display: none;
+    }
+    .settings-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 10002;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    .settings-overlay.hidden {
+      display: none;
+    }
+    .settings-sheet {
+      width: 100%;
+      max-width: 480px;
+      background: #fff;
+      border-radius: 16px 16px 0 0;
+      padding: 20px 20px max(20px, env(safe-area-inset-bottom));
+      box-sizing: border-box;
+    }
+    .settings-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .settings-header h2 {
+      margin: 0;
+      font-size: 1.25rem;
+    }
+    .settings-close {
+      width: 36px;
+      height: 36px;
+      border: none;
+      background: transparent;
+      font-size: 20px;
+      cursor: pointer;
+      color: #666;
+    }
+    .settings-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 0;
+      font-size: 1rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .settings-done {
+      width: 100%;
+      margin-top: 16px;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      background: #007f8b;
+      color: #fff;
+      font-size: 1rem;
+      cursor: pointer;
     }
     .timing-stats {
       display: none;
@@ -164,36 +289,43 @@
       top: 100%;
       margin-top: 4px;
     }
-    .voice-count-control {
-      position: fixed;
-      top: 12px;
-      right: 12px;
-      z-index: 10001;
-      font-size: 14px;
-      color: #3d3d3d;
-      background: rgba(255, 255, 255, 0.92);
-      padding: 8px 12px;
-      border-radius: 6px;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
-    }
-    .voice-count-control label {
-      cursor: pointer;
-      user-select: none;
-    }
   </style>
 </head>
 <body class="live-active">
-  <div id="voiceCountControl" class="voice-count-control">
-    <label>
-      <input type="checkbox" id="voiceCountCheckbox" />
-      Voice count
-    </label>
+  <div id="sessionBar" class="session-bar">
+    <div class="session-bar__left">
+      <button type="button" id="sessionPrimaryBtn" class="session-btn" title="Start" aria-label="Start">▶</button>
+      <div id="sessionRec" class="session-rec hidden" aria-hidden="true">
+        <span class="session-rec-dot"></span>
+        <span id="sessionTimer">0:00</span>
+      </div>
+    </div>
+    <div class="session-bar__center">
+      <div id="sessionCount" class="session-count" aria-live="polite">0</div>
+    </div>
+    <div class="session-bar__right">
+      <button type="button" id="sessionStopBtn" class="session-btn" title="Stop" aria-label="Stop" disabled>⏹</button>
+      <button type="button" id="sessionMenuBtn" class="session-btn" title="Menu" aria-label="Menu">⋮</button>
+    </div>
+  </div>
+  <div id="sessionHint" class="session-hint hidden" aria-live="polite"></div>
+  <div id="settingsOverlay" class="settings-overlay hidden" aria-hidden="true">
+    <div class="settings-sheet" role="dialog" aria-labelledby="settingsTitle">
+      <div class="settings-header">
+        <h2 id="settingsTitle">Settings</h2>
+        <button type="button" id="settingsCloseBtn" class="settings-close" aria-label="Close">✕</button>
+      </div>
+      <label class="settings-row">
+        <input type="checkbox" id="voiceCountCheckbox" />
+        Voice count
+      </label>
+      <button type="button" id="settingsDoneBtn" class="settings-done">Done</button>
+    </div>
   </div>
   <section id="demos" class="invisible">
     <div id="liveView" class="videoView live-fullscreen">
       <div id="videoStage" class="video-stage">
         <video id="webcam" autoplay playsinline></video>
-        <div id="juggleCount" class="juggle-count hidden" aria-live="polite">0 juggles</div>
         <div id="timingStats" class="timing-stats" aria-live="polite">
           <span id="aiMs">AI: — ms</span>
           <span id="postAiMs">PostAI: — ms</span>

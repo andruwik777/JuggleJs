@@ -4,54 +4,76 @@ import { ObjectDetector, FilesetResolver } from 'https://cdn.jsdelivr.net/npm/@m
 import { Kalman1D } from './kalman1d.js';
 
 const demosSection = document.getElementById('demos');
-
-let objectDetector;
-let runningMode = 'IMAGE';
-
-const initializeObjectDetector = async () => {
-  const vision = await FilesetResolver.forVisionTasks(
-    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.2/wasm'
-  );
-  const MODEL_PATH = './models/model_fp16.tflite';
-  const DETECTION_CATEGORY_NAME = 'Juggling - v7 2022-07-26 4-53pm';
-  objectDetector = await ObjectDetector.createFromOptions(vision, {
-    baseOptions: {
-      modelAssetPath: MODEL_PATH,
-      delegate: 'GPU'
-    },
-    scoreThreshold: 0.4,
-    maxResults: 1,
-    runningMode: runningMode,
-    categoryAllowlist: [DETECTION_CATEGORY_NAME]
-  });
-  demosSection.classList.remove('invisible');
-  window.dispatchEvent(new Event('juggleAppReady'));
-  if (isLiveWebcamPage() && hasGetUserMedia()) {
-    enableCam();
-  } else if (isLiveWebcamPage()) {
-    console.warn('getUserMedia() is not supported by your browser');
-  }
-};
-initializeObjectDetector();
-
-let video = document.getElementById('webcam');
+const video = document.getElementById('webcam');
 const liveView = document.getElementById('liveView');
 const videoStage = document.getElementById('videoStage');
 const aiMsEl = document.getElementById('aiMs');
 const postAiMsEl = document.getElementById('postAiMs');
 const totalMsFpsEl = document.getElementById('totalMsFps');
 const juggleCountEl = document.getElementById('juggleCount');
+const sessionCountEl = document.getElementById('sessionCount');
+const sessionPrimaryBtn = document.getElementById('sessionPrimaryBtn');
+const sessionStopBtn = document.getElementById('sessionStopBtn');
+const sessionMenuBtn = document.getElementById('sessionMenuBtn');
+const sessionRecEl = document.getElementById('sessionRec');
+const sessionTimerEl = document.getElementById('sessionTimer');
+const sessionHintEl = document.getElementById('sessionHint');
+const settingsOverlay = document.getElementById('settingsOverlay');
+const settingsCloseBtn = document.getElementById('settingsCloseBtn');
+const settingsDoneBtn = document.getElementById('settingsDoneBtn');
 const voiceCountCheckbox = document.getElementById('voiceCountCheckbox');
 
-function isLiveWebcamPage() {
-  return document.getElementById('testPanel') == null;
-}
+const STATE_BUFFER_CAPACITY = Math.floor(window.innerWidth / 5);
+const KALMAN_PROCESS_VARIANCE = 0.01;
+const KALMAN_MEASUREMENT_VARIANCE = 0.1;
+const AUTO_PAUSE_MS = 5000;
+const AUTO_PAUSE_HINT_MS = 3000;
+const SNAKE_DOT_SIZE = 5;
+const SNAKE_DOT_SIZE_JUGGLE = 10;
 
 const JUGGLE_COUNT_WORDS = [
   'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
   'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen', 'Twenty',
 ];
+
+/** @type {{ session: 'notRunning'|'running'|'paused', juggleCount: number, lastJugglePeakAt: number|null, timer: { startedAt: number|null, pausedAccumMs: number, pauseStartedAt: number|null }, ballState: object[], lastLocalMinY: number|null, kalman: { x: import('./kalman1d.js').Kalman1D|null, y: import('./kalman1d.js').Kalman1D|null, lastT: number|null }, settings: { voice: boolean }, lastVideoTime: number, autoPauseHintUntil: number }} */
+const STATE = {
+  session: 'notRunning',
+  juggleCount: 0,
+  lastJugglePeakAt: null,
+  timer: {
+    startedAt: null,
+    pausedAccumMs: 0,
+    pauseStartedAt: null,
+  },
+  ballState: [],
+  lastLocalMinY: null,
+  kalman: { x: null, y: null, lastT: null },
+  settings: { voice: false },
+  lastVideoTime: -1,
+  autoPauseHintUntil: 0,
+};
+
+let objectDetector;
+let runningMode = 'IMAGE';
 let preferredVoice = null;
+let rafId = null;
+let ballHighlighter = null;
+let snakeFrame = null;
+let snakeDots = [];
+
+function isLiveWebcamPage() {
+  return document.getElementById('testPanel') == null;
+}
+
+function shouldRunDetection() {
+  if (!isLiveWebcamPage()) return true;
+  return STATE.session === 'running';
+}
+
+function hasGetUserMedia() {
+  return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+}
 
 function initVoiceCount() {
   if (typeof speechSynthesis === 'undefined') return;
@@ -78,30 +100,236 @@ function speakJuggleCount(n) {
 
 initVoiceCount();
 
-const STATE_BUFFER_CAPACITY = Math.floor(window.innerWidth / 5);
-console.log('STATE_BUFFER_CAPACITY', STATE_BUFFER_CAPACITY);
-let juggleCount = 0;
-let ballState = [];
-let lastLocalMinY = null;
-
-/** Ball: two 1D filters (X and Y). */
-const KALMAN_PROCESS_VARIANCE = 0.01;
-const KALMAN_MEASUREMENT_VARIANCE = 0.1;
-let kfBallX = null;
-let kfBallY = null;
-let lastKalmanT = null;
-
-function hasGetUserMedia() {
-  return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+function formatSessionTime(ms) {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return min + ':' + String(sec).padStart(2, '0');
 }
 
-let ballHighlighter = null;
+function getSessionElapsedMs() {
+  const { startedAt, pausedAccumMs, pauseStartedAt } = STATE.timer;
+  if (startedAt == null) return 0;
+  if (STATE.session === 'paused' && pauseStartedAt != null) {
+    return pauseStartedAt - startedAt - pausedAccumMs;
+  }
+  return Date.now() - startedAt - pausedAccumMs;
+}
 
-/** Snake visualization: frame + dot elements, created once and reused. */
-let snakeFrame = null;
-let snakeDots = [];
-const SNAKE_DOT_SIZE = 5;
-const SNAKE_DOT_SIZE_JUGGLE = 10;
+function resetTrackingState() {
+  STATE.ballState.length = 0;
+  STATE.lastLocalMinY = null;
+  STATE.kalman.x = null;
+  STATE.kalman.y = null;
+  STATE.kalman.lastT = null;
+  hideTrackingVisuals();
+}
+
+function resetSessionTimer() {
+  STATE.timer.startedAt = null;
+  STATE.timer.pausedAccumMs = 0;
+  STATE.timer.pauseStartedAt = null;
+}
+
+function hideTrackingVisuals() {
+  if (ballHighlighter) ballHighlighter.style.display = 'none';
+  if (snakeFrame) snakeFrame.style.display = 'none';
+}
+
+function showAutoPauseHint() {
+  if (!sessionHintEl) return;
+  sessionHintEl.textContent = 'Paused — no juggles for 5s';
+  sessionHintEl.classList.remove('hidden');
+  STATE.autoPauseHintUntil = Date.now() + AUTO_PAUSE_HINT_MS;
+}
+
+function hideAutoPauseHint() {
+  STATE.autoPauseHintUntil = 0;
+  if (sessionHintEl) sessionHintEl.classList.add('hidden');
+}
+
+function setJuggleCount(n) {
+  STATE.juggleCount = n;
+  if (sessionCountEl) sessionCountEl.textContent = String(n);
+  if (juggleCountEl) juggleCountEl.textContent = n + ' juggles';
+  if (isVoiceEnabled()) speakJuggleCount(n);
+}
+
+function isVoiceEnabled() {
+  if (isLiveWebcamPage()) return STATE.settings.voice;
+  return voiceCountCheckbox?.checked ?? false;
+}
+
+function updateSessionUI() {
+  if (!isLiveWebcamPage()) return;
+
+  if (sessionCountEl) sessionCountEl.textContent = String(STATE.juggleCount);
+
+  if (STATE.autoPauseHintUntil > 0 && Date.now() > STATE.autoPauseHintUntil) {
+    hideAutoPauseHint();
+  }
+
+  if (sessionPrimaryBtn) {
+    if (STATE.session === 'notRunning') {
+      sessionPrimaryBtn.textContent = '▶';
+      sessionPrimaryBtn.title = 'Start';
+      sessionPrimaryBtn.setAttribute('aria-label', 'Start');
+    } else if (STATE.session === 'running') {
+      sessionPrimaryBtn.textContent = '⏸';
+      sessionPrimaryBtn.title = 'Pause';
+      sessionPrimaryBtn.setAttribute('aria-label', 'Pause');
+    } else {
+      sessionPrimaryBtn.textContent = '▶';
+      sessionPrimaryBtn.title = 'Resume';
+      sessionPrimaryBtn.setAttribute('aria-label', 'Resume');
+    }
+  }
+
+  if (sessionStopBtn) {
+    sessionStopBtn.disabled = STATE.session === 'notRunning';
+  }
+
+  if (sessionRecEl && sessionTimerEl) {
+    if (STATE.session === 'notRunning') {
+      sessionRecEl.classList.add('hidden');
+      sessionRecEl.classList.remove('session-rec--running', 'session-rec--paused');
+      sessionRecEl.setAttribute('aria-hidden', 'true');
+    } else {
+      sessionRecEl.classList.remove('hidden');
+      sessionRecEl.setAttribute('aria-hidden', 'false');
+      sessionRecEl.classList.toggle('session-rec--running', STATE.session === 'running');
+      sessionRecEl.classList.toggle('session-rec--paused', STATE.session === 'paused');
+      sessionTimerEl.textContent = formatSessionTime(getSessionElapsedMs());
+    }
+  }
+
+  if (sessionCountEl) {
+    sessionCountEl.classList.toggle('session-count--paused', STATE.session === 'paused');
+  }
+}
+
+function startSession() {
+  resetTrackingState();
+  STATE.session = 'running';
+  STATE.juggleCount = 0;
+  STATE.lastJugglePeakAt = Date.now();
+  resetSessionTimer();
+  STATE.timer.startedAt = Date.now();
+  hideAutoPauseHint();
+  setJuggleCount(0);
+  updateSessionUI();
+}
+
+function pauseSession(showHint) {
+  if (STATE.session !== 'running') return;
+  STATE.session = 'paused';
+  if (STATE.timer.startedAt != null && STATE.timer.pauseStartedAt == null) {
+    STATE.timer.pauseStartedAt = Date.now();
+  }
+  hideTrackingVisuals();
+  if (showHint) showAutoPauseHint();
+  updateSessionUI();
+}
+
+function resumeSession() {
+  if (STATE.session !== 'paused') return;
+  if (STATE.timer.pauseStartedAt != null) {
+    STATE.timer.pausedAccumMs += Date.now() - STATE.timer.pauseStartedAt;
+    STATE.timer.pauseStartedAt = null;
+  }
+  STATE.session = 'running';
+  STATE.lastJugglePeakAt = Date.now();
+  resetTrackingState();
+  hideAutoPauseHint();
+  updateSessionUI();
+}
+
+function stopSession() {
+  STATE.session = 'notRunning';
+  STATE.juggleCount = 0;
+  STATE.lastJugglePeakAt = null;
+  resetSessionTimer();
+  resetTrackingState();
+  hideAutoPauseHint();
+  setJuggleCount(0);
+  updateSessionUI();
+}
+
+function checkAutoPause() {
+  if (STATE.session !== 'running' || STATE.lastJugglePeakAt == null) return;
+  if (Date.now() - STATE.lastJugglePeakAt >= AUTO_PAUSE_MS) {
+    pauseSession(true);
+  }
+}
+
+function openSettings() {
+  if (!settingsOverlay) return;
+  if (voiceCountCheckbox) voiceCountCheckbox.checked = STATE.settings.voice;
+  settingsOverlay.classList.remove('hidden');
+  settingsOverlay.setAttribute('aria-hidden', 'false');
+}
+
+function closeSettings() {
+  if (!settingsOverlay) return;
+  settingsOverlay.classList.add('hidden');
+  settingsOverlay.setAttribute('aria-hidden', 'true');
+}
+
+function syncVoiceSettingFromUI() {
+  if (voiceCountCheckbox) STATE.settings.voice = voiceCountCheckbox.checked;
+}
+
+function initSessionUI() {
+  if (!isLiveWebcamPage()) return;
+
+  sessionPrimaryBtn?.addEventListener('click', () => {
+    if (STATE.session === 'notRunning') startSession();
+    else if (STATE.session === 'running') pauseSession(false);
+    else if (STATE.session === 'paused') resumeSession();
+  });
+
+  sessionStopBtn?.addEventListener('click', () => {
+    if (STATE.session !== 'notRunning') stopSession();
+  });
+
+  sessionMenuBtn?.addEventListener('click', openSettings);
+  settingsCloseBtn?.addEventListener('click', closeSettings);
+  settingsDoneBtn?.addEventListener('click', closeSettings);
+  settingsOverlay?.addEventListener('click', (e) => {
+    if (e.target === settingsOverlay) closeSettings();
+  });
+  voiceCountCheckbox?.addEventListener('change', syncVoiceSettingFromUI);
+
+  updateSessionUI();
+}
+
+initSessionUI();
+
+const initializeObjectDetector = async () => {
+  const vision = await FilesetResolver.forVisionTasks(
+    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.2/wasm'
+  );
+  const MODEL_PATH = './models/model_fp16.tflite';
+  const DETECTION_CATEGORY_NAME = 'Juggling - v7 2022-07-26 4-53pm';
+  objectDetector = await ObjectDetector.createFromOptions(vision, {
+    baseOptions: {
+      modelAssetPath: MODEL_PATH,
+      delegate: 'GPU'
+    },
+    scoreThreshold: 0.4,
+    maxResults: 1,
+    runningMode: runningMode,
+    categoryAllowlist: [DETECTION_CATEGORY_NAME]
+  });
+  demosSection.classList.remove('invisible');
+  window.dispatchEvent(new Event('juggleAppReady'));
+  if (isLiveWebcamPage() && hasGetUserMedia()) {
+    enableCam();
+  } else if (isLiveWebcamPage()) {
+    console.warn('getUserMedia() is not supported by your browser');
+  }
+};
+initializeObjectDetector();
 
 if (hasGetUserMedia() && isLiveWebcamPage()) {
   document.body.classList.add('live-active');
@@ -148,12 +376,8 @@ function onVideoReady() {
   predictWebcam();
 }
 
-let lastVideoTime = -1;
-let rafId = null;
-
 /**
  * Run one frame of detection (used by frame-driven video test only).
- * Set DevTools breakpoint on the detectForVideo line below to pause at this frame; video will stay on this frame.
  */
 async function runOneDetectionFrame() {
   if (runningMode === 'IMAGE') {
@@ -161,8 +385,8 @@ async function runOneDetectionFrame() {
     await objectDetector.setOptions({ runningMode: 'VIDEO' });
   }
   const startTimeMs = performance.now();
-  lastVideoTime = video.currentTime;
-  const detections = objectDetector.detectForVideo(video, startTimeMs); // breakpoint here in test
+  STATE.lastVideoTime = video.currentTime;
+  const detections = objectDetector.detectForVideo(video, startTimeMs);
   displayVideoDetections(detections);
 }
 
@@ -171,24 +395,34 @@ async function predictWebcam() {
     rafId = null;
     return;
   }
+
+  if (isLiveWebcamPage()) {
+    updateSessionUI();
+    checkAutoPause();
+  }
+
   const t0 = performance.now();
   let hadNewFrame = false;
   let detectForVideoMs = 0;
 
-  if (runningMode === 'IMAGE') {
-    runningMode = 'VIDEO';
-    await objectDetector.setOptions({ runningMode: 'VIDEO' });
-  }
-  let startTimeMs = performance.now();
+  if (shouldRunDetection()) {
+    if (runningMode === 'IMAGE') {
+      runningMode = 'VIDEO';
+      await objectDetector.setOptions({ runningMode: 'VIDEO' });
+    }
+    const startTimeMs = performance.now();
 
-  if (video.currentTime !== lastVideoTime) {
-    lastVideoTime = video.currentTime;
-    const t1 = performance.now();
-    const detections = objectDetector.detectForVideo(video, startTimeMs);
-    const t2 = performance.now();
-    detectForVideoMs = Math.round(t2 - t1);
-    hadNewFrame = true;
-    displayVideoDetections(detections);
+    if (video.currentTime !== STATE.lastVideoTime) {
+      STATE.lastVideoTime = video.currentTime;
+      const t1 = performance.now();
+      const detections = objectDetector.detectForVideo(video, startTimeMs);
+      const t2 = performance.now();
+      detectForVideoMs = Math.round(t2 - t1);
+      hadNewFrame = true;
+      displayVideoDetections(detections);
+    }
+  } else if (isLiveWebcamPage()) {
+    hideTrackingVisuals();
   }
 
   const t3 = performance.now();
@@ -203,57 +437,33 @@ async function predictWebcam() {
   rafId = window.requestAnimationFrame(predictWebcam);
 }
 
-function setJuggleCount(n) {
-  juggleCount = n;
-  if (juggleCountEl) juggleCountEl.textContent = n + ' juggles';
-  if (voiceCountCheckbox?.checked) speakJuggleCount(n);
-}
-
-/**
- * Append one point to the ball trajectory state (used for snake and juggle counting).
- * @param {number} x - X position (display)
- * @param {number} y - Y position (display)
- * @param {number} d - Diameter / size for display
- * @param {boolean} calculatedOnly - True if from Kalman predict only (no detection)
- * @param {number} t - Timestamp (ms)
- * @param {number} [vx] - Optional velocity X (otherwise derived from previous point)
- * @param {number} [vy] - Optional velocity Y (otherwise derived from previous point)
- * @param {number|null} [juggleCount=null] - Ordinal juggle number when this frame is a counted juggle peak
- * @param {string|null} [topText=null] - Debug label above dot (e.g. "7" or "-")
- * @param {string|null} [bottomText=null] - Debug label below dot (e.g. ratio)
- */
 function pushBallState(x, y, d, calculatedOnly, t, vx, vy, juggleCount = null, topText = null, bottomText = null) {
   let vxOut = vx != null ? vx : 0;
   let vyOut = vy != null ? vy : 0;
-  if (ballState.length > 0 && vxOut === 0 && vyOut === 0) {
-    const prev = ballState[ballState.length - 1];
+  if (STATE.ballState.length > 0 && vxOut === 0 && vyOut === 0) {
+    const prev = STATE.ballState[STATE.ballState.length - 1];
     const dtSec = (t - prev.t) / 1000;
     if (dtSec > 0) {
       vxOut = (x - prev.x) / dtSec;
       vyOut = (y - prev.y) / dtSec;
     }
   }
-  ballState.push({ x, y, vx: vxOut, vy: vyOut, d, calculatedOnly, t, juggleCount: juggleCount ?? null, topText: topText ?? null, bottomText: bottomText ?? null });
-  if (ballState.length > STATE_BUFFER_CAPACITY) ballState.shift();
+  STATE.ballState.push({ x, y, vx: vxOut, vy: vyOut, d, calculatedOnly, t, juggleCount: juggleCount ?? null, topText: topText ?? null, bottomText: bottomText ?? null });
+  if (STATE.ballState.length > STATE_BUFFER_CAPACITY) STATE.ballState.shift();
 }
 
-/**
- * Check if the latest detected point forms a local max (peak); optionally whether it counts as a juggle.
- * Uses only non-calculated points.
- * @returns {{ isJuggleDetected: boolean, ratio: number|null }} ratio = dropFromTop/diameter (1 decimal), set only at peaks
- */
 function isNewJuggleDetected() {
-  const detected = ballState.filter((e) => !e.calculatedOnly);
+  const detected = STATE.ballState.filter((e) => !e.calculatedOnly);
   if (detected.length < 3) return { isJuggleDetected: false, ratio: null };
   const n = detected.length;
   const prev = detected[n - 2];
   const curr = detected[n - 1];
   const prevPrev = detected[n - 3];
   if (prev.y <= prevPrev.y && prev.y <= curr.y) {
-    lastLocalMinY = prev.y;
+    STATE.lastLocalMinY = prev.y;
   }
   if (prev.y >= prevPrev.y && prev.y >= curr.y) {
-    const dropFromTop = prev.y - (lastLocalMinY != null ? lastLocalMinY : prev.y);
+    const dropFromTop = prev.y - (STATE.lastLocalMinY != null ? STATE.lastLocalMinY : prev.y);
     const ratio = prev.d > 0 ? Math.round((dropFromTop / prev.d) * 10) / 10 : 0;
     const minAmplitude = prev.d / 2;
     const isJuggleDetected = dropFromTop >= minAmplitude;
@@ -262,17 +472,13 @@ function isNewJuggleDetected() {
   return { isJuggleDetected: false, ratio: null };
 }
 
-/**
- * Update the peak point (second-to-last in ballState) with juggleCount and text from isNewJuggleDetected result.
- * @param {{ isJuggleDetected: boolean, ratio: number|null }} result
- */
 function setJuggleInBallState(result) {
-  if (result.ratio == null || ballState.length < 2) return;
-  const peak = ballState[ballState.length - 2];
+  if (result.ratio == null || STATE.ballState.length < 2) return;
+  const peak = STATE.ballState[STATE.ballState.length - 2];
   if (result.isJuggleDetected) {
-    juggleCount++;
-    setJuggleCount(juggleCount);
-    peak.juggleCount = juggleCount;
+    setJuggleCount(STATE.juggleCount + 1);
+    STATE.lastJugglePeakAt = Date.now();
+    peak.juggleCount = STATE.juggleCount;
   } else {
     peak.juggleCount = null;
   }
@@ -288,8 +494,8 @@ function displayVideoDetections(result) {
     container.appendChild(ballHighlighter);
   }
   const t = Date.now();
-  const dtSec = lastKalmanT != null ? (t - lastKalmanT) / 1000 : 0;
-  lastKalmanT = t;
+  const dtSec = STATE.kalman.lastT != null ? (t - STATE.kalman.lastT) / 1000 : 0;
+  STATE.kalman.lastT = t;
 
   const detection = result.detections && result.detections[0];
   if (detection && detection.boundingBox) {
@@ -306,30 +512,30 @@ function displayVideoDetections(result) {
     const centerYDisplay = centerY * sy;
     const dDisplay = b.height * Math.min(sx, sy);
 
-    if (!kfBallX) {
-      kfBallX = new Kalman1D(KALMAN_PROCESS_VARIANCE, KALMAN_MEASUREMENT_VARIANCE);
-      kfBallY = new Kalman1D(KALMAN_PROCESS_VARIANCE, KALMAN_MEASUREMENT_VARIANCE);
+    if (!STATE.kalman.x) {
+      STATE.kalman.x = new Kalman1D(KALMAN_PROCESS_VARIANCE, KALMAN_MEASUREMENT_VARIANCE);
+      STATE.kalman.y = new Kalman1D(KALMAN_PROCESS_VARIANCE, KALMAN_MEASUREMENT_VARIANCE);
     }
-    if (!kfBallX.initialised) {
-      kfBallX.x[0] = centerXDisplay;
-      kfBallX.x[1] = 0;
-      kfBallX.x[2] = 0;
-      kfBallX.initialised = true;
+    if (!STATE.kalman.x.initialised) {
+      STATE.kalman.x.x[0] = centerXDisplay;
+      STATE.kalman.x.x[1] = 0;
+      STATE.kalman.x.x[2] = 0;
+      STATE.kalman.x.initialised = true;
     }
-    if (!kfBallY.initialised) {
-      kfBallY.x[0] = centerYDisplay;
-      kfBallY.x[1] = 0;
-      kfBallY.x[2] = 0;
-      kfBallY.initialised = true;
+    if (!STATE.kalman.y.initialised) {
+      STATE.kalman.y.x[0] = centerYDisplay;
+      STATE.kalman.y.x[1] = 0;
+      STATE.kalman.y.x[2] = 0;
+      STATE.kalman.y.initialised = true;
     }
-    kfBallX.update(centerXDisplay);
-    kfBallY.update(centerYDisplay);
-    const smoothedX = kfBallX.x[0];
-    const smoothedY = kfBallY.x[0];
-    const vx = kfBallX.x[1];
-    const vy = kfBallY.x[1];
-    kfBallX.predict(dtSec);
-    kfBallY.predict(dtSec);
+    STATE.kalman.x.update(centerXDisplay);
+    STATE.kalman.y.update(centerYDisplay);
+    const smoothedX = STATE.kalman.x.x[0];
+    const smoothedY = STATE.kalman.y.x[0];
+    const vx = STATE.kalman.x.x[1];
+    const vy = STATE.kalman.y.x[1];
+    STATE.kalman.x.predict(dtSec);
+    STATE.kalman.y.predict(dtSec);
 
     pushBallState(smoothedX, smoothedY, dDisplay, false, t, vx, vy, null, null, null);
     const juggleResult = isNewJuggleDetected();
@@ -342,22 +548,18 @@ function displayVideoDetections(result) {
     ballHighlighter.style.display = 'block';
   } else {
     ballHighlighter.style.display = 'none';
-    if (kfBallX && kfBallY && kfBallX.initialised) {
-      const predX = kfBallX.predict(dtSec);
-      const predY = kfBallY.predict(dtSec);
-      const d = ballState.length > 0 ? ballState[ballState.length - 1].d : 40;
+    if (STATE.kalman.x && STATE.kalman.y && STATE.kalman.x.initialised) {
+      const predX = STATE.kalman.x.predict(dtSec);
+      const predY = STATE.kalman.y.predict(dtSec);
+      const d = STATE.ballState.length > 0 ? STATE.ballState[STATE.ballState.length - 1].d : 40;
       pushBallState(predX, predY, d, true, t, undefined, undefined, null, null, null);
     }
   }
   liveSnakeVisualisation();
 }
 
-/**
- * Draw ballState as a "snake" in a frame above the timing stats (AI/PostAI/Total), 5px gap.
- * Same width as stats block (videoStage), oldest left, newest right; Y scaled to frame height.
- */
 function liveSnakeVisualisation() {
-  const n = ballState.length;
+  const n = STATE.ballState.length;
   if (n === 0) {
     if (snakeFrame) snakeFrame.style.display = 'none';
     return;
@@ -374,17 +576,17 @@ function liveSnakeVisualisation() {
   const frameH = snakeFrame.offsetHeight || Math.round(window.innerHeight * 0.2);
 
   while (snakeDots.length < n) {
-    const dot = document.createElement('div');
+    const dot = document.createElement('motion');
     dot.setAttribute('class', 'snake-dot');
     dot.setAttribute('aria-hidden', 'true');
     snakeFrame.appendChild(dot);
     snakeDots.push(dot);
   }
 
-  let minY = ballState[0].y;
-  let maxY = ballState[0].y;
+  let minY = STATE.ballState[0].y;
+  let maxY = STATE.ballState[0].y;
   for (let i = 1; i < n; i++) {
-    const y = ballState[i].y;
+    const y = STATE.ballState[i].y;
     if (y < minY) minY = y;
     if (y > maxY) maxY = y;
   }
@@ -392,7 +594,7 @@ function liveSnakeVisualisation() {
   const yScale = rangeY > 0 ? 1 / rangeY : 0;
 
   for (let i = 0; i < n; i++) {
-    const pt = ballState[i];
+    const pt = STATE.ballState[i];
     const dotSize = pt.juggleCount != null ? SNAKE_DOT_SIZE_JUGGLE : SNAKE_DOT_SIZE;
     const half = dotSize / 2;
     const xFrac = n > 1 ? i / (n - 1) : 0.5;
@@ -444,13 +646,8 @@ function liveSnakeVisualisation() {
 }
 
 function resetJuggleState() {
-  juggleCount = 0;
-  ballState.length = 0;
-  lastLocalMinY = null;
-  kfBallX = null;
-  kfBallY = null;
-  lastKalmanT = null;
-  lastVideoTime = -1;
+  stopSession();
+  STATE.lastVideoTime = -1;
   if (rafId != null) {
     cancelAnimationFrame(rafId);
     rafId = null;
@@ -458,12 +655,6 @@ function resetJuggleState() {
   if (juggleCountEl) juggleCountEl.textContent = '0 juggles';
 }
 
-/**
- * Run detection on a video file. Returns { start, result } so the test page can call start() from a user
- * click (required by browser autoplay policy). When the debugger is paused in the loop, the video stops.
- * @param {string} videoUrl - URL or path to the MP4 file (e.g. 'test.mp4')
- * @returns {{ start: (debugMode?: boolean) => void, result: Promise<number> }} - start(debugMode) from user click; debugMode true = frame-driven (breakpoints work, ~0.5x); false = real-time playback
- */
 window.runJuggleTest = function (videoUrl) {
   let resolveResult;
   let rejectResult;
@@ -491,7 +682,7 @@ window.runJuggleTest = function (videoUrl) {
       function step() {
         if (nextTime >= video.duration) {
           if (rafId != null) { cancelAnimationFrame(rafId); rafId = null; }
-          resolveResult(juggleCount);
+          resolveResult(STATE.juggleCount);
           return;
         }
         video.currentTime = nextTime;
@@ -511,7 +702,7 @@ window.runJuggleTest = function (videoUrl) {
       function step() {
         if (video.ended) {
           if (rafId != null) { cancelAnimationFrame(rafId); rafId = null; }
-          resolveResult(juggleCount);
+          resolveResult(STATE.juggleCount);
           return;
         }
         const currentFrame = Math.floor(video.currentTime * TEST_FPS);
@@ -529,6 +720,9 @@ window.runJuggleTest = function (videoUrl) {
 
     window.runJuggleTestStart = function start(debugMode) {
       window.runJuggleTestStart = null;
+      resetTrackingState();
+      STATE.juggleCount = 0;
+      setJuggleCount(0);
       if (debugMode) runDebugMode();
       else runRealtimeMode();
     };
