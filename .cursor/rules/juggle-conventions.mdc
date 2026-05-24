@@ -1,0 +1,24 @@
+---
+description: Coding conventions and agent behavior for the JuggleJs project
+globs: js/**/*.js,*.html
+alwaysApply: true
+---
+
+# JuggleJs coding conventions
+
+## Stack rules
+
+- Do not introduce frameworks, bundlers, or build steps unless the user explicitly asks.
+- Prefer one focused change in `app.js` over new abstractions or extra files.
+- CSS stays inline in HTML `<style>` blocks unless the user asks otherwise.
+
+## Style
+
+- Match existing `app.js` patterns: plain functions, minimal dependencies, English comments.
+- Keep diffs small and scoped to the task.
+- Reuse existing helpers: `pushBallState`, `displayVideoDetections`, `liveSnakeVisualisation`, `runOneDetectionFrame`, `setJuggleCount`.
+
+## Runtime
+
+- TFLite model requires a local server or GitHub Pages — not `file://`.
+- Respect browser autoplay: video/audio/voice need a user gesture to start.

@@ -1,0 +1,46 @@
+---
+description: Juggle counter app — product vision, architecture, and debug tooling
+alwaysApply: true
+---
+
+# Juggle Counter (JuggleJs)
+
+Web app that counts **football juggles** from a live webcam or a test video file. Inspired by [JuggleNet](https://github.com/Logan1904/JuggleNet.git). PoC: https://andruwik777.github.io/JuggleJs
+
+## Architecture
+
+- **Single Page Application** — one HTML page per entry point (`index.html` live webcam, `test-juggle-video.html` video test). No router, no backend.
+- **Vanilla JS** — no React, Vue, bundler, or build step. All logic in `js/app.js` (ES module).
+- **Simple styles, simple JS** — CSS in each HTML `<style>` block; direct DOM create/reuse, no virtual DOM.
+
+## Key files
+
+| File | Role |
+|------|------|
+| `index.html` | Live webcam UI, fullscreen session, voice-count toggle |
+| `test-juggle-video.html` | Video regression test; wraps `window.runJuggleTest()` |
+| `js/app.js` | Detection, counting, Kalman, visualization, voice, test API |
+| `models/model_fp16.tflite` | Custom MediaPipe object-detection model (juggling ball) |
+
+## How juggle counting works
+
+1. **MediaPipe ObjectDetector** detects the ball bounding box each frame.
+2. **1D Kalman filters** (X/Y, JuggleNet model) smooth position; predict when detection is missing (`calculatedOnly`).
+3. **Peak detection** (`isNewJuggleDetected`): local Y maximum with amplitude ≥ half ball diameter = one juggle.
+4. **`ballState`** ring buffer for trajectory and debug viz (`STATE_BUFFER_CAPACITY ≈ window width / 5`).
+5. Optional **Web Speech API** voice count ("One", "Two", …) via `#voiceCountCheckbox`.
+
+## Debug capabilities (preserve when changing code)
+
+1. **Ball overlay** — pink circle (`.highlighter`) on video, sized to bbox in `displayVideoDetections()`.
+2. **Position timeline** — "snake" plot (`.snake-frame`): time left→right, height on Y; blue = detected, red = Kalman-only, green = counted juggle; peak labels show count and amplitude ratio.
+3. **Timing stats** — AI ms, PostAI ms, total ms / FPS (fullscreen).
+4. **Video test DEBUG mode** — frame-by-frame seek + `runOneDetectionFrame()` for DevTools breakpoints; realtime mode uses `video.play()`.
+
+Keep debug overlays working; do not hide diagnostics behind flags unless requested.
+
+## Test API
+
+- `window.runJuggleTest(videoUrl)` → `{ start(debugMode), result: Promise<number> }`
+- Events: `juggleAppReady`, `juggleTestReadyToRun`
+- User gesture required before video/audio (browser autoplay policy)
