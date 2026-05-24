@@ -41,8 +41,6 @@
     .video-stage {
       position: relative;
       flex-shrink: 0;
-      width: 100vw;
-      height: 100vh;
     }
     .highlighter {
       background: none;
@@ -373,10 +371,10 @@
       <button type="button" id="settingsDoneBtn" class="settings-done">Done</button>
     </div>
   </div>
-  <section id="demos">
+  <section id="demos" class="invisible">
     <div id="liveView" class="videoView live-fullscreen">
       <div id="videoStage" class="video-stage">
-        <video id="webcam" autoplay playsinline muted></video>
+        <video id="webcam" autoplay playsinline></video>
         <div id="loadOverlay" class="load-overlay" aria-live="polite">
           <div class="load-panel">
             <p id="loadLabel" class="load-label">Loading engine…</p>
