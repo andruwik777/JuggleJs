@@ -1,0 +1,60 @@
+---
+description: Juggle counter app — product vision, architecture, and coding conventions
+alwaysApply: true
+---
+
+# Juggle Counter (JuggleJs)
+
+Web app that counts **football juggles** from a live webcam or a test video file. Inspired by [JuggleNet](https://github.com/Logan1904/JuggleNet.git). PoC deployed at https://andruwik777.github.io/JuggleJs
+
+## Architecture constraints
+
+- **Single Page Application** — each entry point is one HTML page (`index.html` for live webcam, `test-juggle-video.html` for automated video test). No router, no multi-page backend.
+- **Vanilla JS** — no React, Vue, bundler, or build step. Logic lives in `js/app.js` loaded as an ES module.
+- **Simple styles, simple JS** — CSS inline in each HTML `<style>` block; keep DOM updates direct (create/reuse elements, no virtual DOM). Prefer one focused change in `app.js` over new abstractions or extra files unless clearly needed.
+- **Do not introduce frameworks** unless the user explicitly asks.
+
+## Key files
+
+| File | Role |
+|------|------|
+| `index.html` | Live webcam UI, fullscreen session, voice-count toggle |
+| `test-juggle-video.html` | Video regression test page; wraps `window.runJuggleTest()` |
+| `js/app.js` | All detection, counting, Kalman, visualization, voice, test API |
+| `models/model_fp16.tflite` | Custom MediaPipe object-detection model (juggling ball) |
+
+## How juggle counting works
+
+1. **MediaPipe ObjectDetector** (`@mediapipe/tasks-vision`) detects the ball bounding box each video frame.
+2. **1D Kalman filters** (X and Y, JuggleNet model) smooth position; predict when detection is missing (`calculatedOnly` points).
+3. **Peak detection** on Y trajectory (`isNewJuggleDetected`): local maximum with amplitude ≥ half ball diameter counts as one juggle.
+4. **`ballState`** ring buffer stores trajectory points for counting and debug visualization (`STATE_BUFFER_CAPACITY ≈ window width / 5`).
+5. Optional **Web Speech API** voice count ("One", "Two", …) when `#voiceCountCheckbox` is checked.
+
+## Debug capabilities (important — preserve and extend carefully)
+
+The app is built for **visual debugging** of detection and counting:
+
+1. **Detected ball visualization** — pink circle overlay (`.highlighter`) on the video, sized to the bounding box. Updated in `displayVideoDetections()`.
+2. **Ball position timeline plot** — "snake" chart (`.snake-frame`) above timing stats:
+   - X axis = time (oldest left, newest right)
+   - Y axis = ball height (scaled to frame)
+   - Blue dots = detected points; red = Kalman-only (`calculatedOnly`); green larger dots = counted juggle peaks
+   - Labels on peaks: juggle number (top), amplitude ratio (bottom)
+3. **Timing stats** (fullscreen) — AI ms, PostAI ms, total ms / FPS per frame.
+4. **Video test DEBUG mode** (`test-juggle-video.html`) — frame-by-frame seek + `runOneDetectionFrame()` so DevTools breakpoints pause on a specific frame (~0.5x speed). Realtime mode uses `video.play()` for faster runs.
+
+When adding features, keep debug overlays working and avoid hiding diagnostic data behind flags unless requested.
+
+## Test API
+
+- `window.runJuggleTest(videoUrl)` → `{ start(debugMode), result: Promise<number> }`
+- Events: `juggleAppReady`, `juggleTestReadyToRun`
+- User gesture required before video/audio (browser autoplay policy)
+
+## Coding guidelines
+
+- Match existing style in `app.js`: plain functions, minimal dependencies, English comments.
+- Keep diffs small; reuse `pushBallState`, `displayVideoDetections`, `liveSnakeVisualisation`, `runOneDetectionFrame`.
+- Local server or GitHub Pages needed for TFLite model loading (not `file://`).
+- Do not commit or push unless the user explicitly asks.
