@@ -12,6 +12,7 @@ Web app that counts **football juggles** from a live webcam or a test video file
 - **Single Page Application** — one HTML page per entry point (`index.html` live webcam, `test-juggle-video.html` video test). No router, no backend.
 - **Vanilla JS** — no React, Vue, bundler, or build step. All logic in `js/app.js` (ES module).
 - **Simple styles, simple JS** — CSS in each HTML `<style>` block; direct DOM create/reuse, no virtual DOM.
+- **Aimed for mobile devices** — focused primarily on Android and iOS mobile devices (portrait orientation).
 
 ## Key files
 
