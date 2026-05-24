@@ -363,6 +363,9 @@ const initializeObjectDetector = async () => {
     });
     STATE.loadStatus = 'ready';
     if (isLiveWebcamPage()) {
+      if (hasGetUserMedia()) {
+        await enableCam();
+      }
       setLoadProgress(100, 'Ready');
       hideLoadOverlay();
       updateSessionUI();
@@ -383,25 +386,41 @@ const initializeObjectDetector = async () => {
 if (isLiveWebcamPage()) {
   document.body.classList.add('live-active');
   liveView.classList.add('live-fullscreen');
+  demosSection.classList.remove('invisible');
   showLoadOverlay();
   setLoadProgress(0, 'Loading engine…');
   updateSessionUI();
-  if (hasGetUserMedia()) {
-    enableCam();
-  } else {
-    console.warn('getUserMedia() is not supported by your browser');
-  }
 }
 
 initializeObjectDetector();
 
 let videoReadyHandled = false;
 
-async function enableCam() {
-  const constraints = { video: { facingMode: 'user' } };
-
+async function getCameraStream() {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    return await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+  } catch (err) {
+    console.warn('facingMode user failed, falling back to default video', err);
+    return navigator.mediaDevices.getUserMedia({ video: true });
+  }
+}
+
+async function waitForVideoFrames() {
+  if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) return;
+  await new Promise((resolve) => {
+    const done = () => {
+      video.removeEventListener('loadeddata', done);
+      video.removeEventListener('loadedmetadata', done);
+      resolve();
+    };
+    video.addEventListener('loadeddata', done, { once: true });
+    video.addEventListener('loadedmetadata', done, { once: true });
+  });
+}
+
+async function enableCam() {
+  try {
+    const stream = await getCameraStream();
     video.srcObject = stream;
     video.muted = true;
     demosSection.classList.remove('invisible');
@@ -409,26 +428,37 @@ async function enableCam() {
     document.body.classList.add('live-active');
     liveView.classList.add('live-fullscreen');
     await video.play();
-    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-      onVideoReady();
-    } else {
-      video.addEventListener('loadeddata', onVideoReady, { once: true });
-    }
+    await waitForVideoFrames();
+    onVideoReady();
   } catch (err) {
     console.error(err);
   }
 }
 
 function resizeStageToContain() {
-  if (!videoStage || !video.videoWidth) return;
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  const r = video.videoWidth / video.videoHeight;
-  let w = vw;
-  let h = vw / r;
-  if (h > vh) {
-    h = vh;
-    w = vh * r;
+  if (!videoStage) return;
+  let vw = video.videoWidth;
+  let vh = video.videoHeight;
+  if (!vw || !vh) {
+    const track = video.srcObject?.getVideoTracks?.()?.[0];
+    const settings = track?.getSettings?.();
+    if (settings?.width && settings?.height) {
+      vw = settings.width;
+      vh = settings.height;
+    } else {
+      videoStage.style.width = window.innerWidth + 'px';
+      videoStage.style.height = window.innerHeight + 'px';
+      return;
+    }
+  }
+  const winW = window.innerWidth;
+  const winH = window.innerHeight;
+  const r = vw / vh;
+  let w = winW;
+  let h = winW / r;
+  if (h > winH) {
+    h = winH;
+    w = winH * r;
   }
   videoStage.style.width = w + 'px';
   videoStage.style.height = h + 'px';

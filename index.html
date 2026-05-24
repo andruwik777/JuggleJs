@@ -41,6 +41,8 @@
     .video-stage {
       position: relative;
       flex-shrink: 0;
+      width: 100vw;
+      height: 100vh;
     }
     .highlighter {
       background: none;
@@ -371,7 +373,7 @@
       <button type="button" id="settingsDoneBtn" class="settings-done">Done</button>
     </div>
   </div>
-  <section id="demos" class="invisible">
+  <section id="demos">
     <div id="liveView" class="videoView live-fullscreen">
       <div id="videoStage" class="video-stage">
         <video id="webcam" autoplay playsinline muted></video>
