@@ -26,6 +26,11 @@ const initializeObjectDetector = async () => {
   });
   demosSection.classList.remove('invisible');
   window.dispatchEvent(new Event('juggleAppReady'));
+  if (isLiveWebcamPage() && hasGetUserMedia()) {
+    enableCam();
+  } else if (isLiveWebcamPage()) {
+    console.warn('getUserMedia() is not supported by your browser');
+  }
 };
 initializeObjectDetector();
 
@@ -37,7 +42,10 @@ const postAiMsEl = document.getElementById('postAiMs');
 const totalMsFpsEl = document.getElementById('totalMsFps');
 const juggleCountEl = document.getElementById('juggleCount');
 const voiceCountCheckbox = document.getElementById('voiceCountCheckbox');
-let enableWebcamButton;
+
+function isLiveWebcamPage() {
+  return document.getElementById('testPanel') == null;
+}
 
 const JUGGLE_COUNT_WORDS = [
   'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
@@ -95,24 +103,15 @@ let snakeDots = [];
 const SNAKE_DOT_SIZE = 5;
 const SNAKE_DOT_SIZE_JUGGLE = 10;
 
-if (hasGetUserMedia()) {
-  enableWebcamButton = document.getElementById('webcamButton');
-  enableWebcamButton.addEventListener('click', enableCam);
-} else {
-  console.warn('getUserMedia() is not supported by your browser');
+if (hasGetUserMedia() && isLiveWebcamPage()) {
+  document.body.classList.add('live-active');
+  liveView.classList.add('live-fullscreen');
 }
 
-async function enableCam(event) {
-  if (!objectDetector) {
-    console.log('Wait! objectDetector not loaded yet.');
-    return;
-  }
+async function enableCam() {
+  if (!objectDetector) return;
 
-  enableWebcamButton.classList.add('removed');
-  const wrap = document.getElementById('webcamButtonWrap');
-  if (wrap) wrap.classList.add('removed');
-
-  const constraints = { video: true };
+  const constraints = { video: { facingMode: 'user' } };
 
   navigator.mediaDevices
     .getUserMedia(constraints)

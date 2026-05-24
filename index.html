@@ -182,7 +182,7 @@
     }
   </style>
 </head>
-<body>
+<body class="live-active">
   <div id="voiceCountControl" class="voice-count-control">
     <label>
       <input type="checkbox" id="voiceCountCheckbox" />
@@ -190,13 +190,7 @@
     </label>
   </div>
   <section id="demos" class="invisible">
-    <div id="liveView" class="videoView">
-      <div id="webcamButtonWrap" class="videoView__button-wrap">
-        <button id="webcamButton" class="mdc-button mdc-button--raised">
-          <span class="mdc-button__ripple"></span>
-          <span class="mdc-button__label">Start juggle count</span>
-        </button>
-      </div>
+    <div id="liveView" class="videoView live-fullscreen">
       <div id="videoStage" class="video-stage">
         <video id="webcam" autoplay playsinline></video>
         <div id="juggleCount" class="juggle-count hidden" aria-live="polite">0 juggles</div>
