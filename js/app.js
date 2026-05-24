@@ -1,6 +1,7 @@
 // Based on CodePen: https://codepen.io/mediapipe-preview/pen/vYrWvNg
 // Guide: https://ai.google.dev/edge/mediapipe/solutions/vision/object_detector/web_js
 import { ObjectDetector, FilesetResolver } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.2/vision_bundle.mjs';
+import { Kalman1D } from './kalman1d.js';
 
 const demosSection = document.getElementById('demos');
 
@@ -74,69 +75,6 @@ console.log('STATE_BUFFER_CAPACITY', STATE_BUFFER_CAPACITY);
 let juggleCount = 0;
 let ballState = [];
 let lastLocalMinY = null;
-
-/**
- * 1D Kalman filter, state [position, velocity, acceleration]. Same model as JuggleNet (KalmanFilter.py).
- * F = [[1, dt, 0.5*dt^2], [0, 1, dt], [0, 0, 1]], H = [1, 0, 0], we only observe position.
- */
-function Kalman1D(processVariance, measurementVariance) {
-  this.x = [0, 0, 0];
-  this.P = [1, 0, 0, 0, 1, 0, 0, 0, 1];
-  this.H = [1, 0, 0];
-  this.R = measurementVariance;
-  this.q = processVariance;
-  this.initialised = false;
-}
-
-Kalman1D.prototype.setF = function (dt) {
-  const dt2 = 0.5 * dt * dt;
-  this.F = [1, dt, dt2, 0, 1, dt, 0, 0, 1];
-};
-
-Kalman1D.prototype.update = function (z) {
-  const Hx = this.H[0] * this.x[0] + this.H[1] * this.x[1] + this.H[2] * this.x[2];
-  const y = z - Hx;
-  const HP = [this.P[0], this.P[1], this.P[2]];
-  const S = HP[0] + this.R;
-  const K = [this.P[0] / S, this.P[3] / S, this.P[6] / S];
-  this.x[0] += K[0] * y;
-  this.x[1] += K[1] * y;
-  this.x[2] += K[2] * y;
-  const oneMinusK0 = 1 - K[0];
-  this.P[0] = oneMinusK0 * this.P[0];
-  this.P[1] = oneMinusK0 * this.P[1];
-  this.P[2] = oneMinusK0 * this.P[2];
-  this.P[3] = -K[1] * this.P[0] + this.P[3];
-  this.P[4] = -K[1] * this.P[1] + this.P[4];
-  this.P[5] = -K[1] * this.P[2] + this.P[5];
-  this.P[6] = -K[2] * this.P[0] + this.P[6];
-  this.P[7] = -K[2] * this.P[1] + this.P[7];
-  this.P[8] = -K[2] * this.P[2] + this.P[8];
-  this.initialised = true;
-};
-
-Kalman1D.prototype.predict = function (dt) {
-  if (dt <= 0) return this.x[0];
-  this.setF(dt);
-  const F = this.F;
-  this.x = [
-    F[0] * this.x[0] + F[1] * this.x[1] + F[2] * this.x[2],
-    F[3] * this.x[0] + F[4] * this.x[1] + F[5] * this.x[2],
-    F[6] * this.x[0] + F[7] * this.x[1] + F[8] * this.x[2]
-  ];
-  const P = this.P;
-  const FP = [
-    F[0] * P[0] + F[1] * P[3] + F[2] * P[6], F[0] * P[1] + F[1] * P[4] + F[2] * P[7], F[0] * P[2] + F[1] * P[5] + F[2] * P[8],
-    F[3] * P[0] + F[4] * P[3] + F[5] * P[6], F[3] * P[1] + F[4] * P[4] + F[5] * P[7], F[3] * P[2] + F[4] * P[5] + F[5] * P[8],
-    F[6] * P[0] + F[7] * P[3] + F[8] * P[6], F[6] * P[1] + F[7] * P[4] + F[8] * P[7], F[6] * P[2] + F[7] * P[5] + F[8] * P[8]
-  ];
-  this.P = [
-    FP[0] * F[0] + FP[1] * F[1] + FP[2] * F[2] + this.q, FP[0] * F[3] + FP[1] * F[4] + FP[2] * F[5], FP[0] * F[6] + FP[1] * F[7] + FP[2] * F[8],
-    FP[3] * F[0] + FP[4] * F[1] + FP[5] * F[2], FP[3] * F[3] + FP[4] * F[4] + FP[5] * F[5] + this.q, FP[3] * F[6] + FP[4] * F[7] + FP[5] * F[8],
-    FP[6] * F[0] + FP[7] * F[1] + FP[8] * F[2], FP[6] * F[3] + FP[7] * F[4] + FP[8] * F[5], FP[6] * F[6] + FP[7] * F[7] + FP[8] * F[8] + this.q
-  ];
-  return this.x[0];
-};
 
 /** Ball: two 1D filters (X and Y). */
 const KALMAN_PROCESS_VARIANCE = 0.01;
