@@ -22,6 +22,10 @@ const settingsOverlay = document.getElementById('settingsOverlay');
 const settingsCloseBtn = document.getElementById('settingsCloseBtn');
 const settingsDoneBtn = document.getElementById('settingsDoneBtn');
 const voiceCountCheckbox = document.getElementById('voiceCountCheckbox');
+const showSnakeCheckbox = document.getElementById('showSnakeCheckbox');
+const showBallCheckbox = document.getElementById('showBallCheckbox');
+const showTimingCheckbox = document.getElementById('showTimingCheckbox');
+const timingStatsEl = document.getElementById('timingStats');
 
 const STATE_BUFFER_CAPACITY = Math.floor(window.innerWidth / 5);
 const KALMAN_PROCESS_VARIANCE = 0.01;
@@ -36,7 +40,7 @@ const JUGGLE_COUNT_WORDS = [
   'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen', 'Twenty',
 ];
 
-/** @type {{ session: 'notRunning'|'running'|'paused', juggleCount: number, lastJugglePeakAt: number|null, timer: { startedAt: number|null, pausedAccumMs: number, pauseStartedAt: number|null }, ballState: object[], lastLocalMinY: number|null, kalman: { x: import('./kalman1d.js').Kalman1D|null, y: import('./kalman1d.js').Kalman1D|null, lastT: number|null }, settings: { voice: boolean }, lastVideoTime: number, autoPauseHintUntil: number }} */
+/** @type {{ session: 'notRunning'|'running'|'paused', juggleCount: number, lastJugglePeakAt: number|null, timer: { startedAt: number|null, pausedAccumMs: number, pauseStartedAt: number|null }, ballState: object[], lastLocalMinY: number|null, kalman: { x: import('./kalman1d.js').Kalman1D|null, y: import('./kalman1d.js').Kalman1D|null, lastT: number|null }, settings: { voice: boolean, showSnake: boolean, showBall: boolean, showTiming: boolean }, lastVideoTime: number, autoPauseHintUntil: number }} */
 const STATE = {
   session: 'notRunning',
   juggleCount: 0,
@@ -49,7 +53,7 @@ const STATE = {
   ballState: [],
   lastLocalMinY: null,
   kalman: { x: null, y: null, lastT: null },
-  settings: { voice: false },
+  settings: { voice: false, showSnake: true, showBall: true, showTiming: true },
   lastVideoTime: -1,
   autoPauseHintUntil: 0,
 };
@@ -129,6 +133,29 @@ function resetSessionTimer() {
   STATE.timer.startedAt = null;
   STATE.timer.pausedAccumMs = 0;
   STATE.timer.pauseStartedAt = null;
+}
+
+function isShowSnake() {
+  if (!isLiveWebcamPage()) return true;
+  return STATE.settings.showSnake;
+}
+
+function isShowBall() {
+  if (!isLiveWebcamPage()) return true;
+  return STATE.settings.showBall;
+}
+
+function isShowTiming() {
+  if (!isLiveWebcamPage()) return true;
+  return STATE.settings.showTiming;
+}
+
+function applyVisualizationSettings() {
+  if (timingStatsEl) {
+    timingStatsEl.classList.toggle('timing-stats--hidden', !isShowTiming());
+  }
+  if (!isShowBall() && ballHighlighter) ballHighlighter.style.display = 'none';
+  if (!isShowSnake() && snakeFrame) snakeFrame.style.display = 'none';
 }
 
 function hideTrackingVisuals() {
@@ -283,6 +310,9 @@ function checkAutoPause() {
 function openSettings() {
   if (!settingsOverlay) return;
   if (voiceCountCheckbox) voiceCountCheckbox.checked = STATE.settings.voice;
+  if (showSnakeCheckbox) showSnakeCheckbox.checked = STATE.settings.showSnake;
+  if (showBallCheckbox) showBallCheckbox.checked = STATE.settings.showBall;
+  if (showTimingCheckbox) showTimingCheckbox.checked = STATE.settings.showTiming;
   settingsOverlay.classList.remove('hidden');
   settingsOverlay.setAttribute('aria-hidden', 'false');
 }
@@ -293,8 +323,12 @@ function closeSettings() {
   settingsOverlay.setAttribute('aria-hidden', 'true');
 }
 
-function syncVoiceSettingFromUI() {
+function syncSettingsFromUI() {
   if (voiceCountCheckbox) STATE.settings.voice = voiceCountCheckbox.checked;
+  if (showSnakeCheckbox) STATE.settings.showSnake = showSnakeCheckbox.checked;
+  if (showBallCheckbox) STATE.settings.showBall = showBallCheckbox.checked;
+  if (showTimingCheckbox) STATE.settings.showTiming = showTimingCheckbox.checked;
+  applyVisualizationSettings();
 }
 
 function initSessionUI() {
@@ -316,8 +350,12 @@ function initSessionUI() {
   settingsOverlay?.addEventListener('click', (e) => {
     if (e.target === settingsOverlay) closeSettings();
   });
-  voiceCountCheckbox?.addEventListener('change', syncVoiceSettingFromUI);
+  voiceCountCheckbox?.addEventListener('change', syncSettingsFromUI);
+  showSnakeCheckbox?.addEventListener('change', syncSettingsFromUI);
+  showBallCheckbox?.addEventListener('change', syncSettingsFromUI);
+  showTimingCheckbox?.addEventListener('change', syncSettingsFromUI);
 
+  applyVisualizationSettings();
   updateSessionUI();
 }
 
@@ -445,7 +483,7 @@ async function predictWebcam() {
 
   const t3 = performance.now();
   const predictWebcamMs = Math.round(t3 - t0);
-  if (hadNewFrame && aiMsEl && postAiMsEl && totalMsFpsEl) {
+  if (hadNewFrame && isShowTiming() && aiMsEl && postAiMsEl && totalMsFpsEl) {
     const postAiMs = predictWebcamMs - detectForVideoMs;
     const fps = predictWebcamMs > 0 ? 1000 / predictWebcamMs : 0;
     aiMsEl.textContent = 'AI: ' + detectForVideoMs + ' ms';
@@ -559,11 +597,15 @@ function displayVideoDetections(result) {
     const juggleResult = isNewJuggleDetected();
     if (juggleResult.ratio != null) setJuggleInBallState(juggleResult);
 
-    ballHighlighter.style.left = (dw - centerXDisplay - dDisplay / 2) + 'px';
-    ballHighlighter.style.top = (centerYDisplay - dDisplay / 2) + 'px';
-    ballHighlighter.style.width = dDisplay + 'px';
-    ballHighlighter.style.height = dDisplay + 'px';
-    ballHighlighter.style.display = 'block';
+    if (isShowBall()) {
+      ballHighlighter.style.left = (dw - centerXDisplay - dDisplay / 2) + 'px';
+      ballHighlighter.style.top = (centerYDisplay - dDisplay / 2) + 'px';
+      ballHighlighter.style.width = dDisplay + 'px';
+      ballHighlighter.style.height = dDisplay + 'px';
+      ballHighlighter.style.display = 'block';
+    } else {
+      ballHighlighter.style.display = 'none';
+    }
   } else {
     ballHighlighter.style.display = 'none';
     if (STATE.kalman.x && STATE.kalman.y && STATE.kalman.x.initialised) {
@@ -577,6 +619,10 @@ function displayVideoDetections(result) {
 }
 
 function liveSnakeVisualisation() {
+  if (!isShowSnake()) {
+    if (snakeFrame) snakeFrame.style.display = 'none';
+    return;
+  }
   const n = STATE.ballState.length;
   if (n === 0) {
     if (snakeFrame) snakeFrame.style.display = 'none';

@@ -275,6 +275,9 @@
     .timing-stats {
       display: none;
     }
+    .live-fullscreen .timing-stats.timing-stats--hidden {
+      display: none;
+    }
     .live-fullscreen .timing-stats {
       display: inline-flex;
       position: fixed;
@@ -375,6 +378,18 @@
       <label class="settings-row">
         <input type="checkbox" id="voiceCountCheckbox" />
         Voice count
+      </label>
+      <label class="settings-row">
+        <input type="checkbox" id="showSnakeCheckbox" checked />
+        Trajectory plot
+      </label>
+      <label class="settings-row">
+        <input type="checkbox" id="showBallCheckbox" checked />
+        Ball overlay
+      </label>
+      <label class="settings-row">
+        <input type="checkbox" id="showTimingCheckbox" checked />
+        Performance stats
       </label>
       <button type="button" id="settingsDoneBtn" class="settings-done">Done</button>
     </div>
