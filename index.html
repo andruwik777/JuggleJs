@@ -50,13 +50,15 @@
       box-sizing: border-box;
     }
     .session-bar {
+      --session-count-size: 2rem;
+      --session-icon-size: calc(var(--session-count-size) * 0.88);
       position: fixed;
       top: 0;
       left: 0;
       right: 0;
       z-index: 10001;
       display: grid;
-      grid-template-columns: 1fr auto auto auto 1fr;
+      grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr) auto;
       align-items: center;
       column-gap: 10px;
       padding: 10px 12px;
@@ -79,33 +81,29 @@
       width: 8px;
       height: 8px;
       border-radius: 50%;
+      background: #ef4444;
       flex-shrink: 0;
     }
-    .session-rec--idle .session-rec-dot,
-    .session-rec--paused .session-rec-dot {
-      background: #8e8e93;
+    .session-rec--idle .session-rec-dot {
+      background: #9ca3af;
       animation: none;
-      opacity: 1;
     }
     .session-rec--idle {
       color: rgba(255, 255, 255, 0.45);
     }
     .session-rec--running .session-rec-dot {
-      background: #ff453a;
       animation: rec-pulse 1.2s ease-in-out infinite;
+    }
+    .session-rec--paused .session-rec-dot {
+      background: #9ca3af;
+      animation: none;
     }
     .session-rec--paused {
       color: rgba(255, 255, 255, 0.55);
     }
     @keyframes rec-pulse {
-      0%, 100% {
-        background-color: #ff453a;
-        box-shadow: 0 0 0 0 rgba(255, 69, 58, 0.5);
-      }
-      50% {
-        background-color: #ff6961;
-        box-shadow: 0 0 6px 2px rgba(255, 69, 58, 0.35);
-      }
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.35; }
     }
     .session-btn {
       border: none;
@@ -115,14 +113,16 @@
       align-items: center;
       justify-content: center;
       -webkit-tap-highlight-color: transparent;
-      color: #1c1c1e;
+      color: #000;
     }
     .session-btn--pill {
-      justify-self: center;
-      min-width: 76px;
-      height: 44px;
-      padding: 0 20px;
-      border-radius: 22px;
+      justify-self: stretch;
+      width: 100%;
+      min-width: 0;
+      height: auto;
+      min-height: calc(var(--session-icon-size) + 12px);
+      padding: 6px 10px;
+      border-radius: 999px;
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
     }
@@ -135,18 +135,23 @@
     .session-btn__icon[hidden] {
       display: none;
     }
-    .session-btn__icon svg {
-      width: 24px;
-      height: 24px;
+    .session-btn--pill .session-btn__icon svg {
+      width: var(--session-icon-size);
+      height: var(--session-icon-size);
+      display: block;
+    }
+    .session-btn--icon .session-btn__icon svg {
+      width: 22px;
+      height: 22px;
       display: block;
     }
     .session-btn--start,
     .session-btn--resume {
-      background: rgba(255, 69, 58, 0.92);
+      background: rgba(52, 199, 89, 0.95);
     }
     .session-btn--start:not(:disabled):active,
     .session-btn--resume:not(:disabled):active {
-      background: #e8352e;
+      background: #2db84d;
     }
     .session-btn--pause {
       background: rgba(255, 214, 10, 0.95);
@@ -155,14 +160,14 @@
       background: #e6c200;
     }
     .session-btn--stop:not(:disabled) {
-      background: rgba(255, 69, 58, 0.92);
+      background: rgba(255, 69, 58, 0.95);
     }
     .session-btn--stop:not(:disabled):active {
       background: #e8352e;
     }
     .session-btn--stop:disabled {
       background: rgba(255, 255, 255, 0.12);
-      color: rgba(28, 28, 30, 0.35);
+      color: rgba(0, 0, 0, 0.35);
     }
     .session-btn--icon {
       justify-self: end;
@@ -180,7 +185,7 @@
     }
     .session-count {
       justify-self: center;
-      font-size: 2rem;
+      font-size: var(--session-count-size);
       font-weight: bold;
       color: #fff;
       text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
