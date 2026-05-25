@@ -160,6 +160,32 @@ function isVoiceEnabled() {
   return voiceCountCheckbox?.checked ?? false;
 }
 
+function setPrimarySessionButton(mode) {
+  if (!sessionPrimaryBtn) return;
+  const playIcon = sessionPrimaryBtn.querySelector('.session-btn__icon--play');
+  const pauseIcon = sessionPrimaryBtn.querySelector('.session-btn__icon--pause');
+  sessionPrimaryBtn.classList.remove('session-btn--start', 'session-btn--pause', 'session-btn--resume');
+  if (mode === 'pause') {
+    sessionPrimaryBtn.classList.add('session-btn--pause');
+    sessionPrimaryBtn.title = 'Pause';
+    sessionPrimaryBtn.setAttribute('aria-label', 'Pause');
+    if (playIcon) playIcon.hidden = true;
+    if (pauseIcon) pauseIcon.hidden = false;
+  } else if (mode === 'resume') {
+    sessionPrimaryBtn.classList.add('session-btn--resume');
+    sessionPrimaryBtn.title = 'Resume';
+    sessionPrimaryBtn.setAttribute('aria-label', 'Resume');
+    if (playIcon) playIcon.hidden = false;
+    if (pauseIcon) pauseIcon.hidden = true;
+  } else {
+    sessionPrimaryBtn.classList.add('session-btn--start');
+    sessionPrimaryBtn.title = 'Start';
+    sessionPrimaryBtn.setAttribute('aria-label', 'Start');
+    if (playIcon) playIcon.hidden = false;
+    if (pauseIcon) pauseIcon.hidden = true;
+  }
+}
+
 function updateSessionUI() {
   if (!isLiveWebcamPage()) return;
 
@@ -169,20 +195,12 @@ function updateSessionUI() {
     hideAutoPauseHint();
   }
 
-  if (sessionPrimaryBtn) {
-    if (STATE.session === 'notRunning') {
-      sessionPrimaryBtn.textContent = '▶';
-      sessionPrimaryBtn.title = 'Start';
-      sessionPrimaryBtn.setAttribute('aria-label', 'Start');
-    } else if (STATE.session === 'running') {
-      sessionPrimaryBtn.textContent = '⏸';
-      sessionPrimaryBtn.title = 'Pause';
-      sessionPrimaryBtn.setAttribute('aria-label', 'Pause');
-    } else {
-      sessionPrimaryBtn.textContent = '▶';
-      sessionPrimaryBtn.title = 'Resume';
-      sessionPrimaryBtn.setAttribute('aria-label', 'Resume');
-    }
+  if (STATE.session === 'running') {
+    setPrimarySessionButton('pause');
+  } else if (STATE.session === 'paused') {
+    setPrimarySessionButton('resume');
+  } else {
+    setPrimarySessionButton('start');
   }
 
   if (sessionStopBtn) {

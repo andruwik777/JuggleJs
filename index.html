@@ -79,76 +79,103 @@
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: #ef4444;
       flex-shrink: 0;
     }
-    .session-rec--idle .session-rec-dot {
-      background: #9ca3af;
+    .session-rec--idle .session-rec-dot,
+    .session-rec--paused .session-rec-dot {
+      background: #8e8e93;
       animation: none;
+      opacity: 1;
     }
     .session-rec--idle {
       color: rgba(255, 255, 255, 0.45);
     }
     .session-rec--running .session-rec-dot {
+      background: #ff453a;
       animation: rec-pulse 1.2s ease-in-out infinite;
-    }
-    .session-rec--paused .session-rec-dot {
-      background: #9ca3af;
-      animation: none;
     }
     .session-rec--paused {
       color: rgba(255, 255, 255, 0.55);
     }
     @keyframes rec-pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.35; }
+      0%, 100% {
+        background-color: #ff453a;
+        box-shadow: 0 0 0 0 rgba(255, 69, 58, 0.5);
+      }
+      50% {
+        background-color: #ff6961;
+        box-shadow: 0 0 6px 2px rgba(255, 69, 58, 0.35);
+      }
     }
     .session-btn {
       border: none;
-      color: #fff;
       cursor: pointer;
       flex-shrink: 0;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       -webkit-tap-highlight-color: transparent;
+      color: #1c1c1e;
     }
     .session-btn--pill {
       justify-self: center;
-      min-width: 72px;
+      min-width: 76px;
       height: 44px;
-      padding: 0 18px;
+      padding: 0 20px;
       border-radius: 22px;
-      background: rgba(255, 255, 255, 0.18);
-      font-size: 20px;
-      line-height: 1;
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
     }
-    .session-btn--pill:not(:disabled):active {
-      background: rgba(255, 255, 255, 0.32);
+    .session-btn__icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 0;
+    }
+    .session-btn__icon[hidden] {
+      display: none;
+    }
+    .session-btn__icon svg {
+      width: 24px;
+      height: 24px;
+      display: block;
+    }
+    .session-btn--start,
+    .session-btn--resume {
+      background: rgba(255, 69, 58, 0.92);
+    }
+    .session-btn--start:not(:disabled):active,
+    .session-btn--resume:not(:disabled):active {
+      background: #e8352e;
+    }
+    .session-btn--pause {
+      background: rgba(255, 214, 10, 0.95);
+    }
+    .session-btn--pause:not(:disabled):active {
+      background: #e6c200;
     }
     .session-btn--stop:not(:disabled) {
-      background: rgba(220, 60, 60, 0.35);
+      background: rgba(255, 69, 58, 0.92);
     }
     .session-btn--stop:not(:disabled):active {
-      background: rgba(220, 60, 60, 0.5);
+      background: #e8352e;
+    }
+    .session-btn--stop:disabled {
+      background: rgba(255, 255, 255, 0.12);
+      color: rgba(28, 28, 30, 0.35);
     }
     .session-btn--icon {
       justify-self: end;
       width: 44px;
       height: 44px;
       border-radius: 12px;
-      background: rgba(255, 255, 255, 0.15);
-      font-size: 22px;
-      line-height: 1;
-      letter-spacing: 1px;
+      background: rgba(255, 255, 255, 0.18);
+      color: #f2f2f7;
     }
     .session-btn--icon:not(:disabled):active {
-      background: rgba(255, 255, 255, 0.28);
+      background: rgba(255, 255, 255, 0.32);
     }
     .session-btn:disabled {
-      opacity: 0.35;
       cursor: default;
     }
     .session-count {
@@ -313,10 +340,25 @@
       <span class="session-rec-dot" aria-hidden="true"></span>
       <span id="sessionTimer">0:00</span>
     </div>
-    <button type="button" id="sessionPrimaryBtn" class="session-btn session-btn--pill" title="Start" aria-label="Start">▶</button>
+    <button type="button" id="sessionPrimaryBtn" class="session-btn session-btn--pill session-btn--start" title="Start" aria-label="Start">
+      <span class="session-btn__icon session-btn__icon--play" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 6.5v11l9.5-5.5L8 6.5z"/></svg>
+      </span>
+      <span class="session-btn__icon session-btn__icon--pause" aria-hidden="true" hidden>
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 6h3.5v12H7V6zm6.5 0H17v12h-3.5V6z"/></svg>
+      </span>
+    </button>
     <div id="sessionCount" class="session-count" aria-live="polite">0</div>
-    <button type="button" id="sessionStopBtn" class="session-btn session-btn--pill session-btn--stop" title="Stop" aria-label="Stop" disabled>⏹</button>
-    <button type="button" id="sessionMenuBtn" class="session-btn session-btn--icon" title="Menu" aria-label="Menu">⋮</button>
+    <button type="button" id="sessionStopBtn" class="session-btn session-btn--pill session-btn--stop" title="Stop" aria-label="Stop" disabled>
+      <span class="session-btn__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>
+      </span>
+    </button>
+    <button type="button" id="sessionMenuBtn" class="session-btn session-btn--icon" title="Menu" aria-label="Menu">
+      <span class="session-btn__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="6" r="1.75"/><circle cx="12" cy="12" r="1.75"/><circle cx="12" cy="18" r="1.75"/></svg>
+      </span>
+    </button>
   </div>
   <div id="sessionHint" class="session-hint hidden" aria-live="polite"></div>
   <div id="settingsOverlay" class="settings-overlay hidden" aria-hidden="true">
