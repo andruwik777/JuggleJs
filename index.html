@@ -55,65 +55,25 @@
       left: 0;
       right: 0;
       z-index: 10001;
-      display: flex;
+      display: grid;
+      grid-template-columns: 1fr auto auto auto 1fr;
       align-items: center;
-      justify-content: space-between;
-      gap: 8px;
+      column-gap: 10px;
       padding: 10px 12px;
       padding-top: max(10px, env(safe-area-inset-top));
       background: rgba(0, 0, 0, 0.55);
       box-sizing: border-box;
     }
-    .session-bar__left,
-    .session-bar__right {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex: 1;
-      min-width: 0;
-    }
-    .session-bar__right {
-      justify-content: flex-end;
-    }
-    .session-bar__center {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex: 0 1 auto;
-    }
-    .session-btn {
-      width: 44px;
-      height: 44px;
-      border: none;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.15);
-      color: #fff;
-      font-size: 18px;
-      line-height: 1;
-      cursor: pointer;
-      flex-shrink: 0;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .session-btn:disabled {
-      opacity: 0.35;
-      cursor: default;
-    }
-    .session-btn:not(:disabled):active {
-      background: rgba(255, 255, 255, 0.28);
-    }
     .session-rec {
+      justify-self: start;
       display: inline-flex;
       align-items: center;
       gap: 6px;
+      min-width: 52px;
       font-size: 14px;
       font-variant-numeric: tabular-nums;
       color: rgba(255, 255, 255, 0.85);
       white-space: nowrap;
-    }
-    .session-rec.hidden {
-      display: none;
     }
     .session-rec-dot {
       width: 8px;
@@ -121,6 +81,13 @@
       border-radius: 50%;
       background: #ef4444;
       flex-shrink: 0;
+    }
+    .session-rec--idle .session-rec-dot {
+      background: #9ca3af;
+      animation: none;
+    }
+    .session-rec--idle {
+      color: rgba(255, 255, 255, 0.45);
     }
     .session-rec--running .session-rec-dot {
       animation: rec-pulse 1.2s ease-in-out infinite;
@@ -136,7 +103,56 @@
       0%, 100% { opacity: 1; }
       50% { opacity: 0.35; }
     }
+    .session-btn {
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .session-btn--pill {
+      justify-self: center;
+      min-width: 72px;
+      height: 44px;
+      padding: 0 18px;
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.18);
+      font-size: 20px;
+      line-height: 1;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .session-btn--pill:not(:disabled):active {
+      background: rgba(255, 255, 255, 0.32);
+    }
+    .session-btn--stop:not(:disabled) {
+      background: rgba(220, 60, 60, 0.35);
+    }
+    .session-btn--stop:not(:disabled):active {
+      background: rgba(220, 60, 60, 0.5);
+    }
+    .session-btn--icon {
+      justify-self: end;
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.15);
+      font-size: 22px;
+      line-height: 1;
+      letter-spacing: 1px;
+    }
+    .session-btn--icon:not(:disabled):active {
+      background: rgba(255, 255, 255, 0.28);
+    }
+    .session-btn:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
     .session-count {
+      justify-self: center;
       font-size: 2rem;
       font-weight: bold;
       color: #fff;
@@ -293,20 +309,14 @@
 </head>
 <body class="live-active">
   <div id="sessionBar" class="session-bar">
-    <div class="session-bar__left">
-      <button type="button" id="sessionPrimaryBtn" class="session-btn" title="Start" aria-label="Start">▶</button>
-      <div id="sessionRec" class="session-rec hidden" aria-hidden="true">
-        <span class="session-rec-dot"></span>
-        <span id="sessionTimer">0:00</span>
-      </div>
+    <div id="sessionRec" class="session-rec session-rec--idle">
+      <span class="session-rec-dot" aria-hidden="true"></span>
+      <span id="sessionTimer">0:00</span>
     </div>
-    <div class="session-bar__center">
-      <div id="sessionCount" class="session-count" aria-live="polite">0</div>
-    </div>
-    <div class="session-bar__right">
-      <button type="button" id="sessionStopBtn" class="session-btn" title="Stop" aria-label="Stop" disabled>⏹</button>
-      <button type="button" id="sessionMenuBtn" class="session-btn" title="Menu" aria-label="Menu">⋮</button>
-    </div>
+    <button type="button" id="sessionPrimaryBtn" class="session-btn session-btn--pill" title="Start" aria-label="Start">▶</button>
+    <div id="sessionCount" class="session-count" aria-live="polite">0</div>
+    <button type="button" id="sessionStopBtn" class="session-btn session-btn--pill session-btn--stop" title="Stop" aria-label="Stop" disabled>⏹</button>
+    <button type="button" id="sessionMenuBtn" class="session-btn session-btn--icon" title="Menu" aria-label="Menu">⋮</button>
   </div>
   <div id="sessionHint" class="session-hint hidden" aria-live="polite"></div>
   <div id="settingsOverlay" class="settings-overlay hidden" aria-hidden="true">

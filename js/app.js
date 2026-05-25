@@ -190,15 +190,15 @@ function updateSessionUI() {
   }
 
   if (sessionRecEl && sessionTimerEl) {
+    sessionRecEl.classList.remove('session-rec--running', 'session-rec--paused', 'session-rec--idle');
     if (STATE.session === 'notRunning') {
-      sessionRecEl.classList.add('hidden');
-      sessionRecEl.classList.remove('session-rec--running', 'session-rec--paused');
-      sessionRecEl.setAttribute('aria-hidden', 'true');
+      sessionRecEl.classList.add('session-rec--idle');
+      sessionTimerEl.textContent = '0:00';
+    } else if (STATE.session === 'running') {
+      sessionRecEl.classList.add('session-rec--running');
+      sessionTimerEl.textContent = formatSessionTime(getSessionElapsedMs());
     } else {
-      sessionRecEl.classList.remove('hidden');
-      sessionRecEl.setAttribute('aria-hidden', 'false');
-      sessionRecEl.classList.toggle('session-rec--running', STATE.session === 'running');
-      sessionRecEl.classList.toggle('session-rec--paused', STATE.session === 'paused');
+      sessionRecEl.classList.add('session-rec--paused');
       sessionTimerEl.textContent = formatSessionTime(getSessionElapsedMs());
     }
   }
