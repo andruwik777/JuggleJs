@@ -261,6 +261,26 @@
       cursor: pointer;
       user-select: none;
     }
+    .settings-source-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 8px 0 4px;
+    }
+    .settings-source-btn {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      background: #e8f4f6;
+      color: #007f8b;
+    }
+    .settings-source-btn:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
     .settings-done {
       width: 100%;
       margin-top: 16px;
@@ -271,6 +291,39 @@
       color: #fff;
       font-size: 1rem;
       cursor: pointer;
+    }
+    body.video-source-file .session-rec-dot,
+    body.video-source-file #sessionPrimaryBtn,
+    body.video-source-file #sessionStopBtn {
+      display: none;
+    }
+    .file-transport {
+      position: fixed;
+      left: 50%;
+      bottom: max(12px, env(safe-area-inset-bottom));
+      transform: translateX(-50%);
+      z-index: 10001;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: rgba(0, 0, 0, 0.72);
+      border-radius: 12px;
+    }
+    .file-transport.hidden {
+      display: none;
+    }
+    .file-transport-btn {
+      border: none;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 14px;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.2);
+      color: #fff;
+    }
+    .file-transport-btn:active {
+      background: rgba(255, 255, 255, 0.35);
     }
     .timing-stats {
       display: none;
@@ -369,6 +422,12 @@
     </button>
   </div>
   <div id="sessionHint" class="session-hint hidden" aria-live="polite"></div>
+  <div id="fileTransportBar" class="file-transport hidden" aria-hidden="true">
+    <button type="button" id="fileStepBackBtn" class="file-transport-btn" title="Previous frame" aria-label="Previous frame">◀ Frame</button>
+    <button type="button" id="filePlayPauseBtn" class="file-transport-btn" title="Play" aria-label="Play">Play</button>
+    <button type="button" id="fileStepForwardBtn" class="file-transport-btn" title="Next frame" aria-label="Next frame">Frame ▶</button>
+  </div>
+  <input type="file" id="videoFileInput" accept="video/*" hidden />
   <div id="settingsOverlay" class="settings-overlay hidden" aria-hidden="true">
     <div class="settings-sheet" role="dialog" aria-labelledby="settingsTitle">
       <div class="settings-header">
@@ -391,6 +450,14 @@
         <input type="checkbox" id="showTimingCheckbox" checked />
         Performance stats
       </label>
+      <label class="settings-row" id="fileDebugSettingRow">
+        <input type="checkbox" id="fileDebugCheckbox" />
+        Debug step (file)
+      </label>
+      <div class="settings-source-actions">
+        <button type="button" id="fromFileBtn" class="settings-source-btn">From file</button>
+        <button type="button" id="liveSourceBtn" class="settings-source-btn" disabled>Live</button>
+      </div>
       <button type="button" id="settingsDoneBtn" class="settings-done">Done</button>
     </div>
   </div>

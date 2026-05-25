@@ -25,8 +25,18 @@ const voiceCountCheckbox = document.getElementById('voiceCountCheckbox');
 const showSnakeCheckbox = document.getElementById('showSnakeCheckbox');
 const showBallCheckbox = document.getElementById('showBallCheckbox');
 const showTimingCheckbox = document.getElementById('showTimingCheckbox');
+const fileDebugCheckbox = document.getElementById('fileDebugCheckbox');
+const fileDebugSettingRow = document.getElementById('fileDebugSettingRow');
+const fromFileBtn = document.getElementById('fromFileBtn');
+const liveSourceBtn = document.getElementById('liveSourceBtn');
+const videoFileInput = document.getElementById('videoFileInput');
+const fileTransportBar = document.getElementById('fileTransportBar');
+const fileStepBackBtn = document.getElementById('fileStepBackBtn');
+const fileStepForwardBtn = document.getElementById('fileStepForwardBtn');
+const filePlayPauseBtn = document.getElementById('filePlayPauseBtn');
 const timingStatsEl = document.getElementById('timingStats');
 
+const FILE_FPS = 30;
 const STATE_BUFFER_CAPACITY = Math.floor(window.innerWidth / 5);
 const KALMAN_PROCESS_VARIANCE = 0.01;
 const KALMAN_MEASUREMENT_VARIANCE = 0.1;
@@ -40,9 +50,13 @@ const JUGGLE_COUNT_WORDS = [
   'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen', 'Twenty',
 ];
 
-/** @type {{ session: 'notRunning'|'running'|'paused', juggleCount: number, lastJugglePeakAt: number|null, timer: { startedAt: number|null, pausedAccumMs: number, pauseStartedAt: number|null }, ballState: object[], lastLocalMinY: number|null, kalman: { x: import('./kalman1d.js').Kalman1D|null, y: import('./kalman1d.js').Kalman1D|null, lastT: number|null }, settings: { voice: boolean, showSnake: boolean, showBall: boolean, showTiming: boolean }, lastVideoTime: number, autoPauseHintUntil: number }} */
+/** @type {{ session: 'notRunning'|'running'|'paused', videoSource: 'camera'|'file', fileObjectUrl: string|null, filePlaybackActive: boolean, fileStepTime: number, juggleCount: number, lastJugglePeakAt: number|null, timer: { startedAt: number|null, pausedAccumMs: number, pauseStartedAt: number|null }, ballState: object[], lastLocalMinY: number|null, kalman: { x: import('./kalman1d.js').Kalman1D|null, y: import('./kalman1d.js').Kalman1D|null, lastT: number|null }, settings: { voice: boolean, showSnake: boolean, showBall: boolean, showTiming: boolean, fileDebug: boolean }, lastVideoTime: number, autoPauseHintUntil: number }} */
 const STATE = {
   session: 'notRunning',
+  videoSource: 'camera',
+  fileObjectUrl: null,
+  filePlaybackActive: false,
+  fileStepTime: 0,
   juggleCount: 0,
   lastJugglePeakAt: null,
   timer: {
@@ -53,7 +67,7 @@ const STATE = {
   ballState: [],
   lastLocalMinY: null,
   kalman: { x: null, y: null, lastT: null },
-  settings: { voice: false, showSnake: true, showBall: true, showTiming: true },
+  settings: { voice: false, showSnake: true, showBall: true, showTiming: true, fileDebug: false },
   lastVideoTime: -1,
   autoPauseHintUntil: 0,
 };
@@ -66,12 +80,21 @@ let ballHighlighter = null;
 let snakeFrame = null;
 let snakeDots = [];
 
-function isLiveWebcamPage() {
-  return document.getElementById('testPanel') == null;
+function isTestHarnessPage() {
+  return document.getElementById('testPanel') != null;
+}
+
+function isIndexPage() {
+  return !isTestHarnessPage();
+}
+
+function isCameraSource() {
+  return isIndexPage() && STATE.videoSource === 'camera';
 }
 
 function shouldRunDetection() {
-  if (!isLiveWebcamPage()) return true;
+  if (isTestHarnessPage()) return true;
+  if (STATE.videoSource === 'file') return STATE.filePlaybackActive;
   return STATE.session === 'running';
 }
 
@@ -136,17 +159,17 @@ function resetSessionTimer() {
 }
 
 function isShowSnake() {
-  if (!isLiveWebcamPage()) return true;
+  if (!isIndexPage()) return true;
   return STATE.settings.showSnake;
 }
 
 function isShowBall() {
-  if (!isLiveWebcamPage()) return true;
+  if (!isIndexPage()) return true;
   return STATE.settings.showBall;
 }
 
 function isShowTiming() {
-  if (!isLiveWebcamPage()) return true;
+  if (!isIndexPage()) return true;
   return STATE.settings.showTiming;
 }
 
@@ -183,7 +206,7 @@ function setJuggleCount(n) {
 }
 
 function isVoiceEnabled() {
-  if (isLiveWebcamPage()) return STATE.settings.voice;
+  if (isIndexPage()) return STATE.settings.voice;
   return voiceCountCheckbox?.checked ?? false;
 }
 
@@ -213,8 +236,41 @@ function setPrimarySessionButton(mode) {
   }
 }
 
+function formatVideoTime(sec) {
+  const totalSec = Math.max(0, Math.floor(sec));
+  const min = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return min + ':' + String(s).padStart(2, '0');
+}
+
+function updateFileTimeUI() {
+  if (!isIndexPage() || STATE.videoSource !== 'file' || !sessionTimerEl) return;
+  const dur = video.duration;
+  if (!dur || !Number.isFinite(dur)) {
+    sessionTimerEl.textContent = '0:00';
+    return;
+  }
+  sessionTimerEl.textContent = formatVideoTime(video.currentTime) + ' / ' + formatVideoTime(dur);
+}
+
+function updateVideoSourceUI() {
+  if (!isIndexPage()) return;
+  document.body.classList.toggle('video-source-file', STATE.videoSource === 'file');
+  document.body.classList.toggle('video-source-camera', STATE.videoSource === 'camera');
+  if (liveSourceBtn) liveSourceBtn.disabled = STATE.videoSource === 'camera';
+  const showTransport = STATE.videoSource === 'file' && STATE.settings.fileDebug;
+  if (fileTransportBar) {
+    fileTransportBar.classList.toggle('hidden', !showTransport);
+    fileTransportBar.setAttribute('aria-hidden', showTransport ? 'false' : 'true');
+  }
+}
+
 function updateSessionUI() {
-  if (!isLiveWebcamPage()) return;
+  if (!isIndexPage() || STATE.videoSource === 'file') {
+    if (sessionCountEl) sessionCountEl.textContent = String(STATE.juggleCount);
+    if (STATE.videoSource === 'file') updateFileTimeUI();
+    return;
+  }
 
   if (sessionCountEl) sessionCountEl.textContent = String(STATE.juggleCount);
 
@@ -313,6 +369,8 @@ function openSettings() {
   if (showSnakeCheckbox) showSnakeCheckbox.checked = STATE.settings.showSnake;
   if (showBallCheckbox) showBallCheckbox.checked = STATE.settings.showBall;
   if (showTimingCheckbox) showTimingCheckbox.checked = STATE.settings.showTiming;
+  if (fileDebugCheckbox) fileDebugCheckbox.checked = STATE.settings.fileDebug;
+  updateVideoSourceUI();
   settingsOverlay.classList.remove('hidden');
   settingsOverlay.setAttribute('aria-hidden', 'false');
 }
@@ -328,11 +386,198 @@ function syncSettingsFromUI() {
   if (showSnakeCheckbox) STATE.settings.showSnake = showSnakeCheckbox.checked;
   if (showBallCheckbox) STATE.settings.showBall = showBallCheckbox.checked;
   if (showTimingCheckbox) STATE.settings.showTiming = showTimingCheckbox.checked;
+  if (fileDebugCheckbox) STATE.settings.fileDebug = fileDebugCheckbox.checked;
   applyVisualizationSettings();
+  updateVideoSourceUI();
+}
+
+function stopCameraStream() {
+  const stream = video.srcObject;
+  if (stream && typeof stream.getTracks === 'function') {
+    stream.getTracks().forEach((track) => track.stop());
+  }
+  video.srcObject = null;
+}
+
+function stopFrameLoop() {
+  if (rafId != null) {
+    cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+  video.pause();
+  STATE.filePlaybackActive = false;
+}
+
+function releaseFileObjectUrl() {
+  if (STATE.fileObjectUrl) {
+    URL.revokeObjectURL(STATE.fileObjectUrl);
+    STATE.fileObjectUrl = null;
+  }
+}
+
+function beginFileCountingSession() {
+  resetTrackingState();
+  STATE.juggleCount = 0;
+  setJuggleCount(0);
+  STATE.filePlaybackActive = true;
+  STATE.lastVideoTime = -1;
+}
+
+function updateFilePlayPauseLabel(playing) {
+  if (!filePlayPauseBtn) return;
+  filePlayPauseBtn.textContent = playing ? 'Pause' : 'Play';
+  filePlayPauseBtn.title = playing ? 'Pause' : 'Play';
+  filePlayPauseBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+}
+
+function runFileRealtimeLoop(onEnded) {
+  stopFrameLoop();
+  STATE.filePlaybackActive = true;
+  let lastProcessedFrame = -1;
+  function step() {
+    if (video.ended || (video.duration && video.currentTime >= video.duration - 0.001)) {
+      stopFrameLoop();
+      updateFileTimeUI();
+      if (onEnded) onEnded(STATE.juggleCount);
+      return;
+    }
+    const currentFrame = Math.floor(video.currentTime * FILE_FPS);
+    if (currentFrame > lastProcessedFrame) {
+      lastProcessedFrame = currentFrame;
+      runOneDetectionFrame().then(() => {
+        updateSessionUI();
+        rafId = requestAnimationFrame(step);
+      });
+    } else {
+      rafId = requestAnimationFrame(step);
+    }
+  }
+  updateFilePlayPauseLabel(true);
+  video.play().then(() => {
+    rafId = requestAnimationFrame(step);
+  }).catch((err) => {
+    console.error(err);
+    updateFilePlayPauseLabel(false);
+  });
+}
+
+function seekAndDetectFileFrame(targetTime, onDone) {
+  const dur = video.duration || 0;
+  const t = Math.max(0, Math.min(targetTime, Math.max(0, dur - 0.001)));
+  STATE.fileStepTime = t;
+  const runDetect = () => {
+    runOneDetectionFrame().then(() => {
+      updateSessionUI();
+      if (onDone) onDone();
+    });
+  };
+  if (Math.abs(video.currentTime - t) < 0.0001 && video.readyState >= 2) {
+    runDetect();
+    return;
+  }
+  video.currentTime = t;
+  video.addEventListener('seeked', function onSeeked() {
+    video.removeEventListener('seeked', onSeeked);
+    runDetect();
+  }, { once: true });
+}
+
+function fileStepBack() {
+  stopFrameLoop();
+  updateFilePlayPauseLabel(false);
+  const t = (STATE.fileStepTime || video.currentTime) - 1 / FILE_FPS;
+  seekAndDetectFileFrame(t);
+}
+
+function fileStepForward() {
+  stopFrameLoop();
+  updateFilePlayPauseLabel(false);
+  const t = (STATE.fileStepTime || video.currentTime) + 1 / FILE_FPS;
+  if (video.duration && t >= video.duration) return;
+  seekAndDetectFileFrame(t);
+}
+
+function filePlayPauseToggle() {
+  if (rafId != null) {
+    stopFrameLoop();
+    updateFilePlayPauseLabel(false);
+    return;
+  }
+  runFileRealtimeLoop();
+}
+
+function onFileVideoLoaded(debug, onComplete) {
+  resizeStageToContain();
+  window.addEventListener('resize', resizeStageToContain);
+  beginFileCountingSession();
+  updateVideoSourceUI();
+  if (debug) {
+    STATE.fileStepTime = 0;
+    updateFilePlayPauseLabel(false);
+    seekAndDetectFileFrame(0, onComplete);
+  } else {
+    runFileRealtimeLoop(onComplete);
+  }
+}
+
+function loadFileVideo(url, options = {}) {
+  const { debug = false, onEnded } = options;
+  stopFrameLoop();
+  stopCameraStream();
+  releaseFileObjectUrl();
+  if (url.startsWith('blob:')) STATE.fileObjectUrl = url;
+  video.src = url;
+  video.load();
+  return new Promise((resolve, reject) => {
+    video.addEventListener('loadeddata', function onLoaded() {
+      video.removeEventListener('loadeddata', onLoaded);
+      onFileVideoLoaded(debug, () => {
+        const count = STATE.juggleCount;
+        if (onEnded) onEnded(count);
+        resolve(count);
+      });
+    }, { once: true });
+    video.addEventListener('error', function onError() {
+      video.removeEventListener('error', onError);
+      reject(new Error('Video failed to load'));
+    }, { once: true });
+  });
+}
+
+async function switchToFile(file) {
+  if (!file || !objectDetector) return;
+  stopSession();
+  STATE.videoSource = 'file';
+  document.body.classList.add('live-active');
+  liveView?.classList.add('live-fullscreen');
+  const url = URL.createObjectURL(file);
+  try {
+    await loadFileVideo(url, { debug: STATE.settings.fileDebug });
+  } catch (err) {
+    console.error(err);
+    releaseFileObjectUrl();
+    STATE.videoSource = 'camera';
+    updateVideoSourceUI();
+  }
+}
+
+async function switchToLive() {
+  stopSession();
+  stopFrameLoop();
+  releaseFileObjectUrl();
+  video.removeAttribute('src');
+  video.load();
+  STATE.videoSource = 'camera';
+  STATE.fileStepTime = 0;
+  updateVideoSourceUI();
+  updateSessionUI();
+  if (objectDetector && hasGetUserMedia()) {
+    await enableCam();
+  }
 }
 
 function initSessionUI() {
-  if (!isLiveWebcamPage()) return;
+  if (!isIndexPage()) return;
 
   sessionPrimaryBtn?.addEventListener('click', () => {
     if (STATE.session === 'notRunning') startSession();
@@ -354,8 +599,30 @@ function initSessionUI() {
   showSnakeCheckbox?.addEventListener('change', syncSettingsFromUI);
   showBallCheckbox?.addEventListener('change', syncSettingsFromUI);
   showTimingCheckbox?.addEventListener('change', syncSettingsFromUI);
+  fileDebugCheckbox?.addEventListener('change', syncSettingsFromUI);
+
+  fromFileBtn?.addEventListener('click', () => videoFileInput?.click());
+  videoFileInput?.addEventListener('change', () => {
+    const file = videoFileInput.files?.[0];
+    if (file) {
+      syncSettingsFromUI();
+      closeSettings();
+      switchToFile(file);
+    }
+    videoFileInput.value = '';
+  });
+  liveSourceBtn?.addEventListener('click', () => {
+    if (STATE.videoSource !== 'camera') {
+      closeSettings();
+      switchToLive();
+    }
+  });
+  fileStepBackBtn?.addEventListener('click', fileStepBack);
+  fileStepForwardBtn?.addEventListener('click', fileStepForward);
+  filePlayPauseBtn?.addEventListener('click', filePlayPauseToggle);
 
   applyVisualizationSettings();
+  updateVideoSourceUI();
   updateSessionUI();
 }
 
@@ -379,27 +646,33 @@ const initializeObjectDetector = async () => {
   });
   demosSection.classList.remove('invisible');
   window.dispatchEvent(new Event('juggleAppReady'));
-  if (isLiveWebcamPage() && hasGetUserMedia()) {
+  if (isIndexPage() && isCameraSource() && hasGetUserMedia()) {
     enableCam();
-  } else if (isLiveWebcamPage()) {
+  } else if (isIndexPage() && isCameraSource()) {
     console.warn('getUserMedia() is not supported by your browser');
   }
 };
 initializeObjectDetector();
 
-if (hasGetUserMedia() && isLiveWebcamPage()) {
+if (hasGetUserMedia() && isIndexPage()) {
   document.body.classList.add('live-active');
   liveView.classList.add('live-fullscreen');
 }
 
 async function enableCam() {
-  if (!objectDetector) return;
+  if (!objectDetector || STATE.videoSource !== 'camera') return;
+
+  stopFrameLoop();
+  releaseFileObjectUrl();
+  video.removeAttribute('src');
+  video.load();
 
   const constraints = { video: { facingMode: 'user' } };
 
   navigator.mediaDevices
     .getUserMedia(constraints)
     .then(function (stream) {
+      stopCameraStream();
       video.srcObject = stream;
       if (juggleCountEl) juggleCountEl.classList.remove('hidden');
       document.body.classList.add('live-active');
@@ -447,15 +720,17 @@ async function runOneDetectionFrame() {
 }
 
 async function predictWebcam() {
+  if (STATE.videoSource !== 'camera' || isTestHarnessPage()) {
+    rafId = null;
+    return;
+  }
   if (video.ended) {
     rafId = null;
     return;
   }
 
-  if (isLiveWebcamPage()) {
-    updateSessionUI();
-    checkAutoPause();
-  }
+  updateSessionUI();
+  checkAutoPause();
 
   const t0 = performance.now();
   let hadNewFrame = false;
@@ -477,7 +752,7 @@ async function predictWebcam() {
       hadNewFrame = true;
       displayVideoDetections(detections);
     }
-  } else if (isLiveWebcamPage()) {
+  } else {
     hideTrackingVisuals();
   }
 
@@ -640,7 +915,7 @@ function liveSnakeVisualisation() {
   const frameH = snakeFrame.offsetHeight || Math.round(window.innerHeight * 0.2);
 
   while (snakeDots.length < n) {
-    const dot = document.createElement('motion');
+    const dot = document.createElement('div');
     dot.setAttribute('class', 'snake-dot');
     dot.setAttribute('aria-hidden', 'true');
     snakeFrame.appendChild(dot);
@@ -719,6 +994,26 @@ function resetJuggleState() {
   if (juggleCountEl) juggleCountEl.textContent = '0 juggles';
 }
 
+function runTestHarnessAutoDebug(onEnded) {
+  let nextTime = 0;
+  function step() {
+    if (nextTime >= video.duration) {
+      stopFrameLoop();
+      if (onEnded) onEnded(STATE.juggleCount);
+      return;
+    }
+    video.currentTime = nextTime;
+    video.addEventListener('seeked', function onSeeked() {
+      video.removeEventListener('seeked', onSeeked);
+      runOneDetectionFrame().then(() => {
+        nextTime += 1 / FILE_FPS;
+        rafId = requestAnimationFrame(step);
+      });
+    }, { once: true });
+  }
+  step();
+}
+
 window.runJuggleTest = function (videoUrl) {
   let resolveResult;
   let rejectResult;
@@ -737,58 +1032,14 @@ window.runJuggleTest = function (videoUrl) {
   video.load();
   video.addEventListener('loadeddata', function onLoaded() {
     video.removeEventListener('loadeddata', onLoaded);
-    resizeStageToContain();
-    window.addEventListener('resize', resizeStageToContain);
-    const TEST_FPS = 30;
-
-    function runDebugMode() {
-      let nextTime = 0;
-      function step() {
-        if (nextTime >= video.duration) {
-          if (rafId != null) { cancelAnimationFrame(rafId); rafId = null; }
-          resolveResult(STATE.juggleCount);
-          return;
-        }
-        video.currentTime = nextTime;
-        video.addEventListener('seeked', function onSeeked() {
-          video.removeEventListener('seeked', onSeeked);
-          runOneDetectionFrame().then(() => {
-            nextTime += 1 / TEST_FPS;
-            rafId = requestAnimationFrame(step);
-          });
-        }, { once: true });
-      }
-      step();
-    }
-
-    function runRealtimeMode() {
-      let lastProcessedFrame = -1;
-      function step() {
-        if (video.ended) {
-          if (rafId != null) { cancelAnimationFrame(rafId); rafId = null; }
-          resolveResult(STATE.juggleCount);
-          return;
-        }
-        const currentFrame = Math.floor(video.currentTime * TEST_FPS);
-        if (currentFrame > lastProcessedFrame) {
-          lastProcessedFrame = currentFrame;
-          runOneDetectionFrame().then(() => {
-            rafId = requestAnimationFrame(step);
-          });
-        } else {
-          rafId = requestAnimationFrame(step);
-        }
-      }
-      video.play().then(() => { rafId = requestAnimationFrame(step); }).catch((e) => rejectResult(e));
-    }
-
     window.runJuggleTestStart = function start(debugMode) {
       window.runJuggleTestStart = null;
-      resetTrackingState();
-      STATE.juggleCount = 0;
-      setJuggleCount(0);
-      if (debugMode) runDebugMode();
-      else runRealtimeMode();
+      beginFileCountingSession();
+      if (debugMode) {
+        runTestHarnessAutoDebug(resolveResult);
+      } else {
+        runFileRealtimeLoop(resolveResult);
+      }
     };
     window.dispatchEvent(new Event('juggleTestReadyToRun'));
   }, { once: true });
