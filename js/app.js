@@ -1092,7 +1092,8 @@ function liveSnakeVisualisation() {
     const pt = STATE.ballState[i];
     const dotSize = pt.juggleCount != null ? SNAKE_DOT_SIZE_JUGGLE : SNAKE_DOT_SIZE;
     const half = dotSize / 2;
-    const xFrac = n > 1 ? i / (n - 1) : 0.5;
+    const cap = STATE_BUFFER_CAPACITY;
+    const xFrac = cap > 1 ? ((cap - n) + i) / (cap - 1) : 0.5;
     const x = xFrac * frameW;
     const yFrac = snakeFloorMode ? 1 : (pt.y - minY) * yScale;
     const y = yFrac * frameH;
