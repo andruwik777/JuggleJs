@@ -92,6 +92,10 @@ function isCameraSource() {
   return isIndexPage() && STATE.videoSource === 'camera';
 }
 
+function isVideoDisplayMirrored() {
+  return isCameraSource();
+}
+
 function shouldRunDetection() {
   if (isTestHarnessPage()) return true;
   if (STATE.videoSource === 'file') return STATE.filePlaybackActive;
@@ -873,7 +877,10 @@ function displayVideoDetections(result) {
     if (juggleResult.ratio != null) setJuggleInBallState(juggleResult);
 
     if (isShowBall()) {
-      ballHighlighter.style.left = (dw - centerXDisplay - dDisplay / 2) + 'px';
+      const ballLeft = isVideoDisplayMirrored()
+        ? dw - centerXDisplay - dDisplay / 2
+        : centerXDisplay - dDisplay / 2;
+      ballHighlighter.style.left = ballLeft + 'px';
       ballHighlighter.style.top = (centerYDisplay - dDisplay / 2) + 'px';
       ballHighlighter.style.width = dDisplay + 'px';
       ballHighlighter.style.height = dDisplay + 'px';
