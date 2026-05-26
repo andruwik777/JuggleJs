@@ -490,6 +490,7 @@ function stopFrameLoop() {
   }
   video.pause();
   STATE.filePlaybackActive = false;
+  updateFilePlayPauseLabel(false);
 }
 
 function releaseFileObjectUrl() {
