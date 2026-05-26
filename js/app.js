@@ -73,7 +73,7 @@ const STATE = {
   ballState: [],
   lastLocalMinY: null,
   kalman: { x: null, y: null, lastT: null },
-  settings: { voice: false, showSnake: true, showBall: true, showTiming: true, fileDebug: false },
+  settings: { voice: false, showSnake: true, showBall: true, showTiming: true, fileDebug: true },
   lastVideoTime: -1,
   autoPauseHintUntil: 0,
 };
