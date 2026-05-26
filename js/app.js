@@ -592,10 +592,33 @@ function fileStepForward() {
   seekAndDetectFileFrame(t);
 }
 
+function isFileVideoAtEnd() {
+  const dur = video.duration;
+  if (!dur || !Number.isFinite(dur)) return false;
+  return video.ended || video.currentTime >= dur - 0.001;
+}
+
 function filePlayPauseToggle() {
   if (rafId != null) {
     stopFrameLoop();
     updateFilePlayPauseLabel(false);
+    return;
+  }
+  if (isFileVideoAtEnd()) {
+    resetTrackingState();
+    setJuggleCount(0);
+    STATE.lastVideoTime = -1;
+    STATE.fileStepTime = 0;
+    const startFromBeginning = () => runFileRealtimeLoop();
+    if (video.currentTime <= 0.001) {
+      startFromBeginning();
+      return;
+    }
+    video.addEventListener('seeked', function onSeeked() {
+      video.removeEventListener('seeked', onSeeked);
+      startFromBeginning();
+    }, { once: true });
+    video.currentTime = 0;
     return;
   }
   runFileRealtimeLoop();
