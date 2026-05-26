@@ -34,7 +34,12 @@ const fileTransportBar = document.getElementById('fileTransportBar');
 const fileStepBackBtn = document.getElementById('fileStepBackBtn');
 const fileStepForwardBtn = document.getElementById('fileStepForwardBtn');
 const filePlayPauseBtn = document.getElementById('filePlayPauseBtn');
+const fileScrubber = document.getElementById('fileScrubber');
+const fileScrubFrameEl = document.getElementById('fileScrubFrame');
 const timingStatsEl = document.getElementById('timingStats');
+
+let fileScrubberSyncing = false;
+let fileScrubThrottleId = null;
 
 const FILE_FPS = 30;
 const STATE_BUFFER_CAPACITY = Math.floor(window.innerWidth / 5);
@@ -248,13 +253,81 @@ function formatVideoTime(sec) {
 }
 
 function updateFileTimeUI() {
-  if (!isIndexPage() || STATE.videoSource !== 'file' || !sessionTimerEl) return;
+  if (!isIndexPage() || STATE.videoSource !== 'file') return;
+  const dur = video.duration;
+  if (sessionTimerEl) {
+    if (!dur || !Number.isFinite(dur)) {
+      sessionTimerEl.textContent = '0:00';
+    } else {
+      sessionTimerEl.textContent = formatVideoTime(video.currentTime) + ' / ' + formatVideoTime(dur);
+    }
+  }
+  syncFileScrubberFromVideo();
+  updateFileScrubFrameLabel();
+}
+
+function syncFileScrubberFromVideo() {
+  if (!fileScrubber || fileScrubberSyncing) return;
+  const dur = video.duration;
+  if (!dur || !Number.isFinite(dur)) return;
+  fileScrubberSyncing = true;
+  fileScrubber.max = String(dur);
+  fileScrubber.value = String(video.currentTime);
+  fileScrubberSyncing = false;
+}
+
+function updateFileScrubFrameLabel() {
+  if (!fileScrubFrameEl) return;
   const dur = video.duration;
   if (!dur || !Number.isFinite(dur)) {
-    sessionTimerEl.textContent = '0:00';
+    fileScrubFrameEl.textContent = '';
     return;
   }
-  sessionTimerEl.textContent = formatVideoTime(video.currentTime) + ' / ' + formatVideoTime(dur);
+  const frame = Math.floor(video.currentTime * FILE_FPS);
+  const total = Math.max(0, Math.floor(dur * FILE_FPS));
+  fileScrubFrameEl.textContent = 'Frame ' + frame + ' / ' + total;
+}
+
+function recalculateJuggleCountFromBallState() {
+  let max = 0;
+  for (const pt of STATE.ballState) {
+    if (pt.juggleCount != null && pt.juggleCount > max) max = pt.juggleCount;
+  }
+  setJuggleCount(max);
+}
+
+function undoLastDetect() {
+  stopFrameLoop();
+  updateFilePlayPauseLabel(false);
+  if (STATE.ballState.length === 0) {
+    setJuggleCount(0);
+    liveSnakeVisualisation();
+    updateSessionUI();
+    return;
+  }
+  STATE.ballState.pop();
+  if (STATE.ballState.length === 0) {
+    STATE.lastLocalMinY = null;
+    setJuggleCount(0);
+  } else {
+    STATE.lastLocalMinY = null;
+    recalculateJuggleCountFromBallState();
+  }
+  liveSnakeVisualisation();
+  updateSessionUI();
+}
+
+function scrubFileToTime(targetTime) {
+  stopFrameLoop();
+  updateFilePlayPauseLabel(false);
+  if (fileScrubThrottleId != null) {
+    clearTimeout(fileScrubThrottleId);
+    fileScrubThrottleId = null;
+  }
+  resetTrackingState();
+  setJuggleCount(0);
+  STATE.filePlaybackActive = true;
+  seekAndDetectFileFrame(targetTime);
 }
 
 function updateVideoSourceUI() {
@@ -487,10 +560,7 @@ function seekAndDetectFileFrame(targetTime, onDone) {
 }
 
 function fileStepBack() {
-  stopFrameLoop();
-  updateFilePlayPauseLabel(false);
-  const t = (STATE.fileStepTime || video.currentTime) - 1 / FILE_FPS;
-  seekAndDetectFileFrame(t);
+  undoLastDetect();
 }
 
 function fileStepForward() {
@@ -624,6 +694,25 @@ function initSessionUI() {
   fileStepBackBtn?.addEventListener('click', fileStepBack);
   fileStepForwardBtn?.addEventListener('click', fileStepForward);
   filePlayPauseBtn?.addEventListener('click', filePlayPauseToggle);
+  fileScrubber?.addEventListener('pointerdown', () => {
+    stopFrameLoop();
+    updateFilePlayPauseLabel(false);
+  });
+  fileScrubber?.addEventListener('input', () => {
+    if (fileScrubberSyncing || !fileScrubber) return;
+    const t = parseFloat(fileScrubber.value);
+    if (!Number.isFinite(t)) return;
+    if (fileScrubThrottleId != null) clearTimeout(fileScrubThrottleId);
+    fileScrubThrottleId = setTimeout(() => scrubFileToTime(t), 80);
+  });
+  fileScrubber?.addEventListener('change', () => {
+    if (fileScrubberSyncing || !fileScrubber) return;
+    if (fileScrubThrottleId != null) {
+      clearTimeout(fileScrubThrottleId);
+      fileScrubThrottleId = null;
+    }
+    scrubFileToTime(parseFloat(fileScrubber.value));
+  });
 
   applyVisualizationSettings();
   updateVideoSourceUI();
