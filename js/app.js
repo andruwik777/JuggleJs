@@ -297,6 +297,16 @@ function fileVideoFrameToTime(frame) {
   return frame / FILE_FPS;
 }
 
+function getFileVideoFrameFromTime(timeSec) {
+  return Math.floor(timeSec * FILE_FPS);
+}
+
+function getMaxFileVideoFrame() {
+  const dur = video.duration || 0;
+  if (!dur || !Number.isFinite(dur)) return 0;
+  return Math.floor(Math.max(0, dur - 0.001) * FILE_FPS);
+}
+
 function recalculateJuggleCountFromBallState() {
   let max = 0;
   for (const pt of STATE.ballState) {
@@ -556,7 +566,9 @@ function seekAndDetectFileFrame(targetTime, onDone) {
       if (onDone) onDone();
     });
   };
-  if (Math.abs(video.currentTime - t) < 0.0001 && video.readyState >= 2) {
+  const targetFrame = getFileVideoFrameFromTime(t);
+  const currentFrame = getCurrentFileVideoFrame();
+  if (targetFrame === currentFrame && video.readyState >= 2) {
     runDetect();
     return;
   }
@@ -588,8 +600,7 @@ function fileStepForward() {
   stopFrameLoop();
   updateFilePlayPauseLabel(false);
   const targetFrame = getCurrentFileVideoFrame() + 1;
-  const dur = video.duration || 0;
-  if (dur && fileVideoFrameToTime(targetFrame) >= dur) return;
+  if (targetFrame > getMaxFileVideoFrame()) return;
   seekAndDetectFileFrame(fileVideoFrameToTime(targetFrame));
 }
 
