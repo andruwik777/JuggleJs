@@ -1082,8 +1082,11 @@ function liveSnakeVisualisation() {
     if (pt.d > 0) sumD += pt.d;
   }
   const dRef = sumD > 0 ? sumD / n : 40;
-  const rangeY = Math.max(maxY - minY, SNAKE_MIN_RANGE_BALL_FRACTION * dRef);
+  const rawRangeY = maxY - minY;
+  const minRangeY = SNAKE_MIN_RANGE_BALL_FRACTION * dRef;
+  const rangeY = Math.max(rawRangeY, minRangeY);
   const yScale = 1 / rangeY;
+  const snakeFloorMode = rawRangeY < minRangeY;
 
   for (let i = 0; i < n; i++) {
     const pt = STATE.ballState[i];
@@ -1091,7 +1094,7 @@ function liveSnakeVisualisation() {
     const half = dotSize / 2;
     const xFrac = n > 1 ? i / (n - 1) : 0.5;
     const x = xFrac * frameW;
-    const yFrac = (pt.y - minY) * yScale;
+    const yFrac = snakeFloorMode ? 1 : (pt.y - minY) * yScale;
     const y = yFrac * frameH;
     const el = snakeDots[i];
     el.style.left = (x - half) + 'px';
