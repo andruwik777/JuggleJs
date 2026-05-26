@@ -49,6 +49,7 @@ const AUTO_PAUSE_MS = 5000;
 const AUTO_PAUSE_HINT_MS = 3000;
 const SNAKE_DOT_SIZE = 5;
 const SNAKE_DOT_SIZE_JUGGLE = 10;
+const SNAKE_MIN_RANGE_BALL_FRACTION = 0.5;
 
 const JUGGLE_COUNT_WORDS = [
   'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
@@ -1073,13 +1074,16 @@ function liveSnakeVisualisation() {
 
   let minY = STATE.ballState[0].y;
   let maxY = STATE.ballState[0].y;
-  for (let i = 1; i < n; i++) {
-    const y = STATE.ballState[i].y;
-    if (y < minY) minY = y;
-    if (y > maxY) maxY = y;
+  let sumD = 0;
+  for (let i = 0; i < n; i++) {
+    const pt = STATE.ballState[i];
+    if (pt.y < minY) minY = pt.y;
+    if (pt.y > maxY) maxY = pt.y;
+    if (pt.d > 0) sumD += pt.d;
   }
-  const rangeY = maxY - minY;
-  const yScale = rangeY > 0 ? 1 / rangeY : 0;
+  const dRef = sumD > 0 ? sumD / n : 40;
+  const rangeY = Math.max(maxY - minY, SNAKE_MIN_RANGE_BALL_FRACTION * dRef);
+  const yScale = 1 / rangeY;
 
   for (let i = 0; i < n; i++) {
     const pt = STATE.ballState[i];
@@ -1087,7 +1091,7 @@ function liveSnakeVisualisation() {
     const half = dotSize / 2;
     const xFrac = n > 1 ? i / (n - 1) : 0.5;
     const x = xFrac * frameW;
-    const yFrac = rangeY > 0 ? (pt.y - minY) * yScale : 0.5;
+    const yFrac = (pt.y - minY) * yScale;
     const y = yFrac * frameH;
     const el = snakeDots[i];
     el.style.left = (x - half) + 'px';
