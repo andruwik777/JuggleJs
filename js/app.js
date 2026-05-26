@@ -586,7 +586,7 @@ function fileStepBack() {
 function fileStepForward() {
   stopFrameLoop();
   updateFilePlayPauseLabel(false);
-  const t = (STATE.fileStepTime || video.currentTime) + 1 / FILE_FPS;
+  const t = video.currentTime + 1 / FILE_FPS;
   if (video.duration && t >= video.duration) return;
   seekAndDetectFileFrame(t);
 }
