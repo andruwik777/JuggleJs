@@ -288,6 +288,14 @@ function updateFileScrubFrameLabel() {
   fileScrubFrameEl.textContent = 'Frame ' + frame + ' / ' + total;
 }
 
+function getCurrentFileVideoFrame() {
+  return Math.floor(video.currentTime * FILE_FPS);
+}
+
+function fileVideoFrameToTime(frame) {
+  return frame / FILE_FPS;
+}
+
 function recalculateJuggleCountFromBallState() {
   let max = 0;
   for (const pt of STATE.ballState) {
@@ -296,25 +304,24 @@ function recalculateJuggleCountFromBallState() {
   setJuggleCount(max);
 }
 
-function undoLastDetect() {
-  stopFrameLoop();
-  updateFilePlayPauseLabel(false);
-  if (STATE.ballState.length === 0) {
-    setJuggleCount(0);
-    liveSnakeVisualisation();
-    updateSessionUI();
-    return;
+function recomputeLastLocalMinYFromBallState() {
+  const detected = STATE.ballState.filter((e) => !e.calculatedOnly);
+  STATE.lastLocalMinY = null;
+  if (detected.length < 3) return;
+  for (let i = 2; i < detected.length; i++) {
+    const prevPrev = detected[i - 2];
+    const prev = detected[i - 1];
+    const curr = detected[i];
+    if (prev.y <= prevPrev.y && prev.y <= curr.y) {
+      STATE.lastLocalMinY = prev.y;
+    }
   }
-  STATE.ballState.pop();
-  if (STATE.ballState.length === 0) {
-    STATE.lastLocalMinY = null;
-    setJuggleCount(0);
-  } else {
-    STATE.lastLocalMinY = null;
-    recalculateJuggleCountFromBallState();
-  }
-  liveSnakeVisualisation();
-  updateSessionUI();
+}
+
+function trimBallStateBeforeFileFrame(targetFrame) {
+  STATE.ballState = STATE.ballState.filter(
+    (pt) => pt.fileVideoFrame == null || pt.fileVideoFrame < targetFrame
+  );
 }
 
 function scrubFileToTime(targetTime) {
@@ -560,7 +567,20 @@ function seekAndDetectFileFrame(targetTime, onDone) {
 }
 
 function fileStepBack() {
-  undoLastDetect();
+  stopFrameLoop();
+  updateFilePlayPauseLabel(false);
+  const currentFrame = getCurrentFileVideoFrame();
+  if (currentFrame <= 0) return;
+  const targetFrame = currentFrame - 1;
+  trimBallStateBeforeFileFrame(targetFrame);
+  recalculateJuggleCountFromBallState();
+  recomputeLastLocalMinYFromBallState();
+  STATE.kalman.x = null;
+  STATE.kalman.y = null;
+  STATE.kalman.lastT = null;
+  liveSnakeVisualisation();
+  STATE.filePlaybackActive = true;
+  seekAndDetectFileFrame(fileVideoFrameToTime(targetFrame));
 }
 
 function fileStepForward() {
@@ -872,7 +892,16 @@ function pushBallState(x, y, d, calculatedOnly, t, vx, vy, juggleCount = null, t
       vyOut = (y - prev.y) / dtSec;
     }
   }
-  STATE.ballState.push({ x, y, vx: vxOut, vy: vyOut, d, calculatedOnly, t, juggleCount: juggleCount ?? null, topText: topText ?? null, bottomText: bottomText ?? null });
+  const entry = {
+    x, y, vx: vxOut, vy: vyOut, d, calculatedOnly, t,
+    juggleCount: juggleCount ?? null,
+    topText: topText ?? null,
+    bottomText: bottomText ?? null,
+  };
+  if (isIndexPage() && STATE.videoSource === 'file') {
+    entry.fileVideoFrame = getCurrentFileVideoFrame();
+  }
+  STATE.ballState.push(entry);
   if (STATE.ballState.length > STATE_BUFFER_CAPACITY) STATE.ballState.shift();
 }
 
