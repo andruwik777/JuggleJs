@@ -262,6 +262,7 @@ function updateFileTimeUI() {
       sessionTimerEl.textContent = formatVideoTime(video.currentTime) + ' / ' + formatVideoTime(dur);
     }
   }
+  if (STATE.videoSource === 'file') STATE.fileStepTime = video.currentTime;
   syncFileScrubberFromVideo();
   updateFileScrubFrameLabel();
 }
@@ -586,9 +587,10 @@ function fileStepBack() {
 function fileStepForward() {
   stopFrameLoop();
   updateFilePlayPauseLabel(false);
-  const t = (STATE.fileStepTime || video.currentTime) + 1 / FILE_FPS;
-  if (video.duration && t >= video.duration) return;
-  seekAndDetectFileFrame(t);
+  const targetFrame = getCurrentFileVideoFrame() + 1;
+  const dur = video.duration || 0;
+  if (dur && fileVideoFrameToTime(targetFrame) >= dur) return;
+  seekAndDetectFileFrame(fileVideoFrameToTime(targetFrame));
 }
 
 function filePlayPauseToggle() {
