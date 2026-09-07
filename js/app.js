@@ -1,6 +1,6 @@
 // Based on CodePen: https://codepen.io/mediapipe-preview/pen/vYrWvNg
 // Guide: https://ai.google.dev/edge/mediapipe/solutions/vision/object_detector/web_js
-import { ObjectDetector, FilesetResolver } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.2/vision_bundle.mjs';
+import { ObjectDetector, FilesetResolver } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/vision_bundle.mjs';
 import { Kalman1D } from './kalman1d.js';
 
 const demosSection = document.getElementById('demos');
@@ -773,7 +773,7 @@ initSessionUI();
 
 const initializeObjectDetector = async () => {
   const vision = await FilesetResolver.forVisionTasks(
-    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.2/wasm'
+    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm'
   );
   const MODEL_PATH = './models/model_fp16.tflite';
   const DETECTION_CATEGORY_NAME = 'Juggling - v7 2022-07-26 4-53pm';
