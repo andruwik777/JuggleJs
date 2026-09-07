@@ -48,6 +48,8 @@ const STATE_BUFFER_CAPACITY = Math.floor(window.innerWidth / 5);
 const KALMAN_PROCESS_VARIANCE = 0.01;
 const KALMAN_MEASUREMENT_VARIANCE = 0.1;
 const AUTO_PAUSE_MS = 5000;
+const AUTO_PAUSE_FILL_DELAY_MS = 2000;
+const AUTO_PAUSE_FILL_MS = AUTO_PAUSE_MS - AUTO_PAUSE_FILL_DELAY_MS;
 const AUTO_PAUSE_HINT_MS = 3000;
 const SNAKE_DOT_SIZE = 5;
 const SNAKE_DOT_SIZE_JUGGLE = 10;
@@ -654,7 +656,12 @@ function updateAutoPauseProgressUi() {
     }
     return;
   }
-  const progress = Math.min(1, (Date.now() - STATE.lastJugglePeakAt) / AUTO_PAUSE_MS);
+  const idleMs = Date.now() - STATE.lastJugglePeakAt;
+  if (idleMs < AUTO_PAUSE_FILL_DELAY_MS) {
+    setPoseButtonProgress(sessionPrimaryBtn, 0);
+    return;
+  }
+  const progress = Math.min(1, (idleMs - AUTO_PAUSE_FILL_DELAY_MS) / AUTO_PAUSE_FILL_MS);
   setPoseButtonProgress(sessionPrimaryBtn, progress);
 }
 
