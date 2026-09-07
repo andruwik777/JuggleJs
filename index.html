@@ -3,7 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Object detection - MediaPipe</title>
+  <meta name="theme-color" content="#000000">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>JuggleJs</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
   <style>
     body {
       font-family: roboto, system-ui, sans-serif;
@@ -332,6 +337,28 @@
     body.video-source-file #sessionStopBtn {
       display: none;
     }
+    .pwa-install-btn {
+      position: fixed;
+      top: calc(58px + env(safe-area-inset-top));
+      right: 12px;
+      z-index: 10003;
+      border: none;
+      border-radius: 999px;
+      padding: 10px 16px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      background: rgba(0, 127, 139, 0.95);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .pwa-install-btn:active {
+      background: #006a74;
+    }
+    .pwa-install-btn.hidden {
+      display: none;
+    }
     .file-transport {
       position: fixed;
       left: 50%;
@@ -486,6 +513,7 @@
     </button>
   </div>
   <div id="sessionHint" class="session-hint hidden" aria-live="polite"></div>
+  <button type="button" id="pwaInstallBtn" class="pwa-install-btn hidden" aria-label="Install app">Install</button>
   <div id="fileTransportBar" class="file-transport hidden" aria-hidden="true">
     <div class="file-transport-scrub-wrap">
       <input type="range" id="fileScrubber" class="file-scrubber" min="0" max="0" step="0.001" value="0" aria-label="Video position" />

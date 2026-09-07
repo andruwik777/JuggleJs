@@ -39,9 +39,12 @@ const filePlayPauseBtn = document.getElementById('filePlayPauseBtn');
 const fileScrubber = document.getElementById('fileScrubber');
 const fileScrubFrameEl = document.getElementById('fileScrubFrame');
 const timingStatsEl = document.getElementById('timingStats');
+const pwaInstallBtn = document.getElementById('pwaInstallBtn');
 
 let fileScrubberSyncing = false;
 let fileScrubThrottleId = null;
+let deferredPwaInstallPrompt = null;
+let pwaInstallDismissedThisLoad = false;
 
 const FILE_FPS = 30;
 const STATE_BUFFER_CAPACITY = Math.floor(window.innerWidth / 5);
@@ -1006,9 +1009,93 @@ function initSessionUI() {
   applyVisualizationSettings();
   updateVideoSourceUI();
   updateSessionUI();
+  initPwaInstallUi();
+}
+
+function isRunningAsInstalledPwa() {
+  return (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia('(display-mode: fullscreen)').matches ||
+    window.navigator.standalone === true
+  );
+}
+
+function hidePwaInstallButton() {
+  if (pwaInstallBtn) pwaInstallBtn.classList.add('hidden');
+}
+
+function showPwaInstallButton() {
+  if (!pwaInstallBtn || !isIndexPage()) return;
+  if (pwaInstallDismissedThisLoad || isRunningAsInstalledPwa() || !deferredPwaInstallPrompt) return;
+  pwaInstallBtn.classList.remove('hidden');
+}
+
+function dismissPwaInstallPromptUi() {
+  pwaInstallDismissedThisLoad = true;
+  hidePwaInstallButton();
+}
+
+async function onPwaInstallButtonClick() {
+  if (!deferredPwaInstallPrompt) {
+    hidePwaInstallButton();
+    return;
+  }
+  const promptEvent = deferredPwaInstallPrompt;
+  deferredPwaInstallPrompt = null;
+  hidePwaInstallButton();
+  try {
+    await promptEvent.prompt();
+    await promptEvent.userChoice;
+  } catch (err) {
+    console.warn('PWA install prompt failed', err);
+  }
+}
+
+function initPwaInstallUi() {
+  if (!isIndexPage() || !pwaInstallBtn) return;
+
+  if (isRunningAsInstalledPwa()) {
+    hidePwaInstallButton();
+    return;
+  }
+
+  window.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    deferredPwaInstallPrompt = event;
+    showPwaInstallButton();
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredPwaInstallPrompt = null;
+    hidePwaInstallButton();
+  });
+
+  pwaInstallBtn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    onPwaInstallButtonClick();
+  });
+
+  document.addEventListener('click', (event) => {
+    if (pwaInstallBtn.classList.contains('hidden')) return;
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const btn = target.closest('button');
+    if (!btn || btn === pwaInstallBtn) return;
+    dismissPwaInstallPromptUi();
+  }, true);
+}
+
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator) || !isIndexPage()) return;
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch((err) => {
+      console.warn('Service worker registration failed', err);
+    });
+  });
 }
 
 initSessionUI();
+registerServiceWorker();
 
 const initializeVisionTasks = async () => {
   const vision = await FilesetResolver.forVisionTasks(
