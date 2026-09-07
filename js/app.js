@@ -1121,14 +1121,15 @@ async function predictWebcam() {
   }
 
   updateSessionUI();
-  checkAutoPause();
 
   const t0 = performance.now();
   let hadNewFrame = false;
   let detectForVideoMs = 0;
 
   if (shouldRunDetection()) {
-    resetPoseHoldState();
+    // Keep autopause fill on the Pause button; only reset pose-hold bookkeeping.
+    resetPoseHoldState({ clearUi: false });
+    setPoseButtonProgress(sessionStopBtn, 0);
     if (runningMode === 'IMAGE') {
       runningMode = 'VIDEO';
       await objectDetector.setOptions({ runningMode: 'VIDEO' });
@@ -1154,6 +1155,8 @@ async function predictWebcam() {
       resetPoseHoldState();
     }
   }
+
+  checkAutoPause();
 
   const t3 = performance.now();
   const predictWebcamMs = Math.round(t3 - t0);
