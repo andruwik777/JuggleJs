@@ -24,6 +24,8 @@ const settingsDoneBtn = document.getElementById('settingsDoneBtn');
 const voiceCountCheckbox = document.getElementById('voiceCountCheckbox');
 const handsFreeCheckbox = document.getElementById('handsFreeCheckbox');
 const autoPauseCheckbox = document.getElementById('autoPauseCheckbox');
+const minBounceSlider = document.getElementById('minBounceSlider');
+const minBounceValueEl = document.getElementById('minBounceValue');
 const showSnakeCheckbox = document.getElementById('showSnakeCheckbox');
 const showBallCheckbox = document.getElementById('showBallCheckbox');
 const showTimingCheckbox = document.getElementById('showTimingCheckbox');
@@ -68,7 +70,7 @@ const JUGGLE_COUNT_WORDS = [
   'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen', 'Twenty',
 ];
 
-/** @type {{ session: 'notRunning'|'running'|'paused', videoSource: 'camera'|'file', fileObjectUrl: string|null, filePlaybackActive: boolean, fileStepTime: number, juggleCount: number, lastJugglePeakAt: number|null, timer: { startedAt: number|null, pausedAccumMs: number, pauseStartedAt: number|null }, ballState: object[], lastLocalMinY: number|null, kalman: { x: import('./kalman1d.js').Kalman1D|null, y: import('./kalman1d.js').Kalman1D|null, lastT: number|null }, settings: { voice: boolean, handsFree: boolean, autoPause: boolean, showSnake: boolean, showBall: boolean, showTiming: boolean, fileDebug: boolean }, lastVideoTime: number, autoPauseHintUntil: number, pose: { holdAction: null|'start'|'stop', holdSince: number|null, ignoreUntil: number, needsNeutral: boolean } }} */
+/** @type {{ session: 'notRunning'|'running'|'paused', videoSource: 'camera'|'file', fileObjectUrl: string|null, filePlaybackActive: boolean, fileStepTime: number, juggleCount: number, lastJugglePeakAt: number|null, timer: { startedAt: number|null, pausedAccumMs: number, pauseStartedAt: number|null }, ballState: object[], lastLocalMinY: number|null, kalman: { x: import('./kalman1d.js').Kalman1D|null, y: import('./kalman1d.js').Kalman1D|null, lastT: number|null }, settings: { voice: boolean, handsFree: boolean, autoPause: boolean, minBounce: number, showSnake: boolean, showBall: boolean, showTiming: boolean, fileDebug: boolean }, lastVideoTime: number, autoPauseHintUntil: number, pose: { holdAction: null|'start'|'stop', holdSince: number|null, ignoreUntil: number, needsNeutral: boolean } }} */
 const STATE = {
   session: 'notRunning',
   videoSource: 'camera',
@@ -89,6 +91,7 @@ const STATE = {
     voice: false,
     handsFree: true,
     autoPause: true,
+    minBounce: 0.2,
     showSnake: true,
     showBall: true,
     showTiming: true,
@@ -688,6 +691,10 @@ function openSettings() {
   if (voiceCountCheckbox) voiceCountCheckbox.checked = STATE.settings.voice;
   if (handsFreeCheckbox) handsFreeCheckbox.checked = STATE.settings.handsFree;
   if (autoPauseCheckbox) autoPauseCheckbox.checked = STATE.settings.autoPause;
+  if (minBounceSlider) {
+    minBounceSlider.value = String(STATE.settings.minBounce);
+    if (minBounceValueEl) minBounceValueEl.textContent = String(STATE.settings.minBounce);
+  }
   if (showSnakeCheckbox) showSnakeCheckbox.checked = STATE.settings.showSnake;
   if (showBallCheckbox) showBallCheckbox.checked = STATE.settings.showBall;
   if (showTimingCheckbox) showTimingCheckbox.checked = STATE.settings.showTiming;
@@ -707,6 +714,13 @@ function syncSettingsFromUI() {
   if (voiceCountCheckbox) STATE.settings.voice = voiceCountCheckbox.checked;
   if (handsFreeCheckbox) STATE.settings.handsFree = handsFreeCheckbox.checked;
   if (autoPauseCheckbox) STATE.settings.autoPause = autoPauseCheckbox.checked;
+  if (minBounceSlider) {
+    const v = parseFloat(minBounceSlider.value);
+    if (Number.isFinite(v)) {
+      STATE.settings.minBounce = Math.round(v * 10) / 10;
+      if (minBounceValueEl) minBounceValueEl.textContent = String(STATE.settings.minBounce);
+    }
+  }
   if (showSnakeCheckbox) STATE.settings.showSnake = showSnakeCheckbox.checked;
   if (showBallCheckbox) STATE.settings.showBall = showBallCheckbox.checked;
   if (showTimingCheckbox) STATE.settings.showTiming = showTimingCheckbox.checked;
@@ -962,6 +976,7 @@ function initSessionUI() {
   voiceCountCheckbox?.addEventListener('change', syncSettingsFromUI);
   handsFreeCheckbox?.addEventListener('change', syncSettingsFromUI);
   autoPauseCheckbox?.addEventListener('change', syncSettingsFromUI);
+  minBounceSlider?.addEventListener('input', syncSettingsFromUI);
   showSnakeCheckbox?.addEventListener('change', syncSettingsFromUI);
   showBallCheckbox?.addEventListener('change', syncSettingsFromUI);
   showTimingCheckbox?.addEventListener('change', syncSettingsFromUI);
@@ -1307,7 +1322,7 @@ function isNewJuggleDetected() {
   if (prev.y >= prevPrev.y && prev.y >= curr.y) {
     const dropFromTop = prev.y - (STATE.lastLocalMinY != null ? STATE.lastLocalMinY : prev.y);
     const ratio = prev.d > 0 ? Math.round((dropFromTop / prev.d) * 10) / 10 : 0;
-    const minAmplitude = prev.d / 2;
+    const minAmplitude = prev.d * STATE.settings.minBounce;
     const isJuggleDetected = dropFromTop >= minAmplitude;
     return { isJuggleDetected, ratio };
   }

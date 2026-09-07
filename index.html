@@ -297,6 +297,21 @@
       cursor: pointer;
       user-select: none;
     }
+    .settings-row--slider {
+      cursor: default;
+      gap: 12px;
+    }
+    .settings-row--slider .settings-slider-label {
+      flex: 0 0 auto;
+      white-space: nowrap;
+      min-width: 7.5rem;
+    }
+    .settings-row--slider input[type="range"] {
+      flex: 1 1 auto;
+      min-width: 0;
+      margin: 0;
+      accent-color: #007f8b;
+    }
     .settings-source-actions {
       display: flex;
       flex-direction: column;
@@ -544,6 +559,10 @@
         <input type="checkbox" id="autoPauseCheckbox" checked />
         Autopause
       </label>
+      <div class="settings-row settings-row--slider">
+        <span class="settings-slider-label">Min bounce <span id="minBounceValue">0.2</span></span>
+        <input type="range" id="minBounceSlider" min="0.1" max="0.5" step="0.1" value="0.2" aria-label="Min bounce" />
+      </div>
       <label class="settings-row">
         <input type="checkbox" id="showSnakeCheckbox" checked />
         Trajectory plot
