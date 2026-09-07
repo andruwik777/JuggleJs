@@ -22,6 +22,7 @@ const settingsOverlay = document.getElementById('settingsOverlay');
 const settingsCloseBtn = document.getElementById('settingsCloseBtn');
 const settingsDoneBtn = document.getElementById('settingsDoneBtn');
 const voiceCountCheckbox = document.getElementById('voiceCountCheckbox');
+const autoPauseCheckbox = document.getElementById('autoPauseCheckbox');
 const showSnakeCheckbox = document.getElementById('showSnakeCheckbox');
 const showBallCheckbox = document.getElementById('showBallCheckbox');
 const showTimingCheckbox = document.getElementById('showTimingCheckbox');
@@ -56,7 +57,7 @@ const JUGGLE_COUNT_WORDS = [
   'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen', 'Twenty',
 ];
 
-/** @type {{ session: 'notRunning'|'running'|'paused', videoSource: 'camera'|'file', fileObjectUrl: string|null, filePlaybackActive: boolean, fileStepTime: number, juggleCount: number, lastJugglePeakAt: number|null, timer: { startedAt: number|null, pausedAccumMs: number, pauseStartedAt: number|null }, ballState: object[], lastLocalMinY: number|null, kalman: { x: import('./kalman1d.js').Kalman1D|null, y: import('./kalman1d.js').Kalman1D|null, lastT: number|null }, settings: { voice: boolean, showSnake: boolean, showBall: boolean, showTiming: boolean, fileDebug: boolean }, lastVideoTime: number, autoPauseHintUntil: number }} */
+/** @type {{ session: 'notRunning'|'running'|'paused', videoSource: 'camera'|'file', fileObjectUrl: string|null, filePlaybackActive: boolean, fileStepTime: number, juggleCount: number, lastJugglePeakAt: number|null, timer: { startedAt: number|null, pausedAccumMs: number, pauseStartedAt: number|null }, ballState: object[], lastLocalMinY: number|null, kalman: { x: import('./kalman1d.js').Kalman1D|null, y: import('./kalman1d.js').Kalman1D|null, lastT: number|null }, settings: { voice: boolean, autoPause: boolean, showSnake: boolean, showBall: boolean, showTiming: boolean, fileDebug: boolean }, lastVideoTime: number, autoPauseHintUntil: number }} */
 const STATE = {
   session: 'notRunning',
   videoSource: 'camera',
@@ -73,7 +74,7 @@ const STATE = {
   ballState: [],
   lastLocalMinY: null,
   kalman: { x: null, y: null, lastT: null },
-  settings: { voice: false, showSnake: true, showBall: true, showTiming: true, fileDebug: true },
+  settings: { voice: false, autoPause: false, showSnake: true, showBall: true, showTiming: true, fileDebug: true },
   lastVideoTime: -1,
   autoPauseHintUntil: 0,
 };
@@ -442,6 +443,7 @@ function stopSession() {
 }
 
 function checkAutoPause() {
+  if (!STATE.settings.autoPause) return;
   if (STATE.session !== 'running' || STATE.lastJugglePeakAt == null) return;
   if (Date.now() - STATE.lastJugglePeakAt >= AUTO_PAUSE_MS) {
     pauseSession(true);
@@ -451,6 +453,7 @@ function checkAutoPause() {
 function openSettings() {
   if (!settingsOverlay) return;
   if (voiceCountCheckbox) voiceCountCheckbox.checked = STATE.settings.voice;
+  if (autoPauseCheckbox) autoPauseCheckbox.checked = STATE.settings.autoPause;
   if (showSnakeCheckbox) showSnakeCheckbox.checked = STATE.settings.showSnake;
   if (showBallCheckbox) showBallCheckbox.checked = STATE.settings.showBall;
   if (showTimingCheckbox) showTimingCheckbox.checked = STATE.settings.showTiming;
@@ -468,6 +471,7 @@ function closeSettings() {
 
 function syncSettingsFromUI() {
   if (voiceCountCheckbox) STATE.settings.voice = voiceCountCheckbox.checked;
+  if (autoPauseCheckbox) STATE.settings.autoPause = autoPauseCheckbox.checked;
   if (showSnakeCheckbox) STATE.settings.showSnake = showSnakeCheckbox.checked;
   if (showBallCheckbox) STATE.settings.showBall = showBallCheckbox.checked;
   if (showTimingCheckbox) STATE.settings.showTiming = showTimingCheckbox.checked;
@@ -715,6 +719,7 @@ function initSessionUI() {
     if (e.target === settingsOverlay) closeSettings();
   });
   voiceCountCheckbox?.addEventListener('change', syncSettingsFromUI);
+  autoPauseCheckbox?.addEventListener('change', syncSettingsFromUI);
   showSnakeCheckbox?.addEventListener('change', syncSettingsFromUI);
   showBallCheckbox?.addEventListener('change', syncSettingsFromUI);
   showTimingCheckbox?.addEventListener('change', syncSettingsFromUI);
