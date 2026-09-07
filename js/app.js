@@ -400,10 +400,11 @@ function hideAutoPauseHint() {
 }
 
 function setJuggleCount(n) {
+  const prev = STATE.juggleCount;
   STATE.juggleCount = n;
   if (sessionCountEl) sessionCountEl.textContent = String(n);
   if (juggleCountEl) juggleCountEl.textContent = n + ' juggles';
-  if (isVoiceEnabled()) speakJuggleCount(n);
+  if (isVoiceEnabled() && n !== prev) speakJuggleCount(n);
 }
 
 function isVoiceEnabled() {
