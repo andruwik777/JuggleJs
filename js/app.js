@@ -593,19 +593,22 @@ function startSession(options = {}) {
   STATE.timer.startedAt = Date.now();
   hideAutoPauseHint();
   clearPoseUiProgress();
-  if (announce) speakVoiceWord('Start');
+  if (announce) speakVoiceWord('Started');
   setJuggleCount(0);
   updateSessionUI();
 }
 
-function pauseSession(showHint) {
+function pauseSession(showHint, options = {}) {
   if (STATE.session !== 'running') return;
+  const announce = options.announce !== false;
   STATE.session = 'paused';
   if (STATE.timer.startedAt != null && STATE.timer.pauseStartedAt == null) {
     STATE.timer.pauseStartedAt = Date.now();
   }
   hideTrackingVisuals();
+  clearPoseUiProgress();
   if (showHint) showAutoPauseHint();
+  if (announce) speakVoiceWord('Paused');
   updateSessionUI();
 }
 
@@ -621,7 +624,7 @@ function resumeSession(options = {}) {
   resetTrackingState();
   hideAutoPauseHint();
   clearPoseUiProgress();
-  if (announce) speakVoiceWord('Resume');
+  if (announce) speakVoiceWord('Resumed');
   updateSessionUI();
 }
 
@@ -634,14 +637,36 @@ function stopSession(options = {}) {
   resetTrackingState();
   hideAutoPauseHint();
   clearPoseUiProgress();
-  if (announce) speakVoiceWord('Reset');
+  if (announce) speakVoiceWord('Stopped');
   setJuggleCount(0);
   updateSessionUI();
 }
 
+function updateAutoPauseProgressUi() {
+  if (
+    !STATE.settings.autoPause ||
+    STATE.session !== 'running' ||
+    STATE.lastJugglePeakAt == null ||
+    !sessionPrimaryBtn?.classList.contains('session-btn--pause')
+  ) {
+    if (sessionPrimaryBtn?.classList.contains('session-btn--pause')) {
+      setPoseButtonProgress(sessionPrimaryBtn, 0);
+    }
+    return;
+  }
+  const progress = Math.min(1, (Date.now() - STATE.lastJugglePeakAt) / AUTO_PAUSE_MS);
+  setPoseButtonProgress(sessionPrimaryBtn, progress);
+}
+
 function checkAutoPause() {
-  if (!STATE.settings.autoPause) return;
+  if (!STATE.settings.autoPause) {
+    if (sessionPrimaryBtn?.classList.contains('session-btn--pause')) {
+      setPoseButtonProgress(sessionPrimaryBtn, 0);
+    }
+    return;
+  }
   if (STATE.session !== 'running' || STATE.lastJugglePeakAt == null) return;
+  updateAutoPauseProgressUi();
   if (Date.now() - STATE.lastJugglePeakAt >= AUTO_PAUSE_MS) {
     pauseSession(true);
   }
@@ -941,7 +966,7 @@ function initSessionUI() {
       closeSettings();
       switchToLive();
     }
-  });
+  });z
   fileStepBackBtn?.addEventListener('click', fileStepBack);
   fileStepForwardBtn?.addEventListener('click', fileStepForward);
   filePlayPauseBtn?.addEventListener('click', filePlayPauseToggle);

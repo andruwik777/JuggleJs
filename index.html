@@ -171,6 +171,15 @@
     .session-btn--pause:not(:disabled):active {
       background: #e6c200;
     }
+    .session-btn--pause.session-btn--pose-filling {
+      background: linear-gradient(
+        to right,
+        rgba(64, 150, 86, 0.92) 0%,
+        rgba(64, 150, 86, 0.92) calc(var(--pose-progress, 0) * 100%),
+        rgba(255, 214, 10, 0.95) calc(var(--pose-progress, 0) * 100%)
+      );
+      transform: scale(calc(1 + 0.05 * var(--pose-progress, 0)));
+    }
     .session-btn--stop:not(:disabled) {
       background: rgba(255, 69, 58, 0.95);
     }
