@@ -323,6 +323,10 @@
       font-size: 1rem;
       cursor: pointer;
     }
+    body.video-source-file .session-bar {
+      /* Primary/Stop are display:none and leave the grid; keep timer | count | menu. */
+      grid-template-columns: auto minmax(0, 1fr) auto;
+    }
     body.video-source-file .session-rec-dot,
     body.video-source-file #sessionPrimaryBtn,
     body.video-source-file #sessionStopBtn {
