@@ -1,5 +1,5 @@
 /* JuggleJs service worker — offline cache for app shell + MediaPipe assets. */
-const CACHE_VERSION = 'jugglejs-v4';
+const CACHE_VERSION = 'jugglejs-v5';
 const APP_SHELL = [
   './',
   './index.html',
