@@ -253,7 +253,7 @@
       position: fixed;
       inset: 0;
       z-index: 10002;
-      background: rgba(0, 0, 0, 0.5);
+      background: rgba(0, 0, 0, 0.72);
       display: flex;
       align-items: flex-end;
       justify-content: center;
@@ -264,10 +264,12 @@
     .settings-sheet {
       width: 100%;
       max-width: 480px;
-      background: #fff;
+      background: #0b0b0c;
+      color: #f2f2f7;
       border-radius: 16px 16px 0 0;
       padding: 20px 20px max(20px, env(safe-area-inset-bottom));
       box-sizing: border-box;
+      border-top: 1px solid rgba(255, 255, 255, 0.12);
     }
     .settings-header {
       display: flex;
@@ -278,15 +280,18 @@
     .settings-header h2 {
       margin: 0;
       font-size: 1.25rem;
+      color: #f2f2f7;
     }
     .settings-close {
-      width: 36px;
-      height: 36px;
+      width: 40px;
+      height: 40px;
       border: none;
-      background: transparent;
-      font-size: 20px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.1);
+      font-size: 22px;
       cursor: pointer;
-      color: #666;
+      color: #fff;
+      line-height: 1;
     }
     .settings-row {
       display: flex;
@@ -296,6 +301,7 @@
       font-size: 1rem;
       cursor: pointer;
       user-select: none;
+      color: rgba(255, 255, 255, 0.88);
     }
     .settings-row--slider {
       cursor: default;
@@ -325,8 +331,9 @@
       border-radius: 8px;
       font-size: 1rem;
       cursor: pointer;
-      background: #e8f4f6;
-      color: #007f8b;
+      background: rgba(0, 127, 139, 0.22);
+      color: #7dd3de;
+      border: 1px solid rgba(125, 211, 222, 0.35);
     }
     .settings-source-btn:disabled {
       opacity: 0.45;
@@ -342,6 +349,9 @@
       color: #fff;
       font-size: 1rem;
       cursor: pointer;
+    }
+    .settings-done:active {
+      background: #006a74;
     }
     .help-overlay {
       position: fixed;
