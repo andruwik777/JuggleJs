@@ -21,6 +21,10 @@ const sessionHintEl = document.getElementById('sessionHint');
 const settingsOverlay = document.getElementById('settingsOverlay');
 const settingsCloseBtn = document.getElementById('settingsCloseBtn');
 const settingsDoneBtn = document.getElementById('settingsDoneBtn');
+const helpOpenBtn = document.getElementById('helpOpenBtn');
+const helpOverlay = document.getElementById('helpOverlay');
+const helpCloseBtn = document.getElementById('helpCloseBtn');
+const helpOkBtn = document.getElementById('helpOkBtn');
 const voiceCountCheckbox = document.getElementById('voiceCountCheckbox');
 const handsFreeCheckbox = document.getElementById('handsFreeCheckbox');
 const autoPauseCheckbox = document.getElementById('autoPauseCheckbox');
@@ -710,6 +714,20 @@ function closeSettings() {
   settingsOverlay.setAttribute('aria-hidden', 'true');
 }
 
+function openHelp() {
+  if (!helpOverlay) return;
+  helpOverlay.classList.remove('hidden');
+  helpOverlay.setAttribute('aria-hidden', 'false');
+  const body = helpOverlay.querySelector('.help-body');
+  if (body) body.scrollTop = 0;
+}
+
+function closeHelp() {
+  if (!helpOverlay) return;
+  helpOverlay.classList.add('hidden');
+  helpOverlay.setAttribute('aria-hidden', 'true');
+}
+
 function syncSettingsFromUI() {
   if (voiceCountCheckbox) STATE.settings.voice = voiceCountCheckbox.checked;
   if (handsFreeCheckbox) STATE.settings.handsFree = handsFreeCheckbox.checked;
@@ -973,6 +991,9 @@ function initSessionUI() {
   settingsOverlay?.addEventListener('click', (e) => {
     if (e.target === settingsOverlay) closeSettings();
   });
+  helpOpenBtn?.addEventListener('click', openHelp);
+  helpCloseBtn?.addEventListener('click', closeHelp);
+  helpOkBtn?.addEventListener('click', closeHelp);
   voiceCountCheckbox?.addEventListener('change', syncSettingsFromUI);
   handsFreeCheckbox?.addEventListener('change', syncSettingsFromUI);
   autoPauseCheckbox?.addEventListener('change', syncSettingsFromUI);

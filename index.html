@@ -343,6 +343,150 @@
       font-size: 1rem;
       cursor: pointer;
     }
+    .help-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 10004;
+      background: #0b0b0c;
+      color: #f2f2f7;
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+    }
+    .help-overlay.hidden {
+      display: none;
+    }
+    .help-header {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      padding-top: max(14px, env(safe-area-inset-top));
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .help-header h2 {
+      margin: 0;
+      font-size: 1.25rem;
+    }
+    .help-close {
+      width: 40px;
+      height: 40px;
+      border: none;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      font-size: 22px;
+      cursor: pointer;
+      line-height: 1;
+    }
+    .help-body {
+      flex: 1 1 auto;
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 16px 18px 12px;
+      padding-bottom: 8px;
+    }
+    .help-body h3 {
+      margin: 1.25rem 0 0.45rem;
+      font-size: 1.05rem;
+      color: #7dd3de;
+    }
+    .help-body h3:first-child {
+      margin-top: 0;
+    }
+    .help-body p,
+    .help-body li {
+      margin: 0 0 0.55rem;
+      font-size: 0.95rem;
+      line-height: 1.45;
+      color: rgba(255, 255, 255, 0.88);
+    }
+    .help-body ul {
+      margin: 0 0 0.75rem;
+      padding-left: 1.15rem;
+    }
+    .help-pose {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin: 0.75rem 0 1rem;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .help-pose svg {
+      flex: 0 0 auto;
+      width: 72px;
+      height: 96px;
+      display: block;
+    }
+    .help-pose-text {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .help-pose-text strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 0.98rem;
+    }
+    .help-pose-text p {
+      margin: 0;
+      font-size: 0.9rem;
+      color: rgba(255, 255, 255, 0.75);
+    }
+    .help-ios {
+      margin: 0.75rem 0 1rem;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(125, 211, 222, 0.45);
+      background: rgba(0, 127, 139, 0.22);
+    }
+    .help-ios strong {
+      display: block;
+      margin-bottom: 6px;
+      color: #9ee7ef;
+    }
+    .help-ios ol {
+      margin: 0;
+      padding-left: 1.2rem;
+    }
+    .help-ios li {
+      margin-bottom: 0.35rem;
+    }
+    .help-contact a {
+      color: #7dd3de;
+    }
+    .help-outro {
+      margin: 1.4rem 0 0.5rem;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: rgba(52, 199, 89, 0.15);
+      border: 1px solid rgba(52, 199, 89, 0.35);
+      font-size: 0.95rem;
+      line-height: 1.45;
+      color: #d8f8df;
+    }
+    .help-footer {
+      flex: 0 0 auto;
+      padding: 12px 16px max(12px, env(safe-area-inset-bottom));
+      border-top: 1px solid rgba(255, 255, 255, 0.12);
+      background: #0b0b0c;
+    }
+    .help-ok {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      background: #007f8b;
+      color: #fff;
+      font-size: 1.05rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .help-ok:active {
+      background: #006a74;
+    }
     body.video-source-file .session-bar {
       /* Primary/Stop are display:none and leave the grid; keep timer | count | menu. */
       grid-template-columns: auto minmax(0, 1fr) auto;
@@ -582,8 +726,94 @@
       <div class="settings-source-actions">
         <button type="button" id="fromFileBtn" class="settings-source-btn">From file</button>
         <button type="button" id="liveSourceBtn" class="settings-source-btn" disabled>Live</button>
+        <button type="button" id="helpOpenBtn" class="settings-source-btn">Help</button>
       </div>
       <button type="button" id="settingsDoneBtn" class="settings-done">Done</button>
+    </div>
+  </div>
+  <div id="helpOverlay" class="help-overlay hidden" aria-hidden="true" role="dialog" aria-labelledby="helpTitle">
+    <div class="help-header">
+      <h2 id="helpTitle">Help</h2>
+      <button type="button" id="helpCloseBtn" class="help-close" aria-label="Close">✕</button>
+    </div>
+    <div class="help-body">
+      <h3>What is JuggleJs?</h3>
+      <p>JuggleJs counts football juggles from your camera — or from a video file. Put the phone down, keep the ball in frame, and watch the count climb.</p>
+
+      <h3>Live session</h3>
+      <ul>
+        <li><strong>Start / Resume</strong> — green control (or a hands-free pose).</li>
+        <li><strong>Pause</strong> — yellow control, or Autopause after idle.</li>
+        <li><strong>Stop / Reset</strong> — red control; clears the count.</li>
+        <li>Top bar shows timer, count, and menu.</li>
+      </ul>
+
+      <h3>Hands-free poses</h3>
+      <p>Works only while you are <strong>not</strong> actively counting, so juggling keeps full FPS. Hold the pose about <strong>1 second</strong>.</p>
+      <div class="help-pose">
+        <svg viewBox="0 0 64 88" aria-hidden="true">
+          <circle cx="32" cy="10" r="7" fill="none" stroke="#7dd3de" stroke-width="3"/>
+          <line x1="32" y1="17" x2="32" y2="48" stroke="#f2f2f7" stroke-width="3" stroke-linecap="round"/>
+          <line x1="32" y1="28" x2="12" y2="8" stroke="#34c759" stroke-width="3" stroke-linecap="round"/>
+          <line x1="32" y1="28" x2="52" y2="8" stroke="#34c759" stroke-width="3" stroke-linecap="round"/>
+          <line x1="32" y1="48" x2="18" y2="78" stroke="#f2f2f7" stroke-width="3" stroke-linecap="round"/>
+          <line x1="32" y1="48" x2="46" y2="78" stroke="#f2f2f7" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+        <div class="help-pose-text">
+          <strong>Arms up → Start / Resume</strong>
+          <p>Raise both hands above your shoulders and hold. Same as tapping the green button.</p>
+        </div>
+      </div>
+      <div class="help-pose">
+        <svg viewBox="0 0 64 88" aria-hidden="true">
+          <circle cx="32" cy="10" r="7" fill="none" stroke="#7dd3de" stroke-width="3"/>
+          <line x1="32" y1="17" x2="32" y2="48" stroke="#f2f2f7" stroke-width="3" stroke-linecap="round"/>
+          <line x1="32" y1="28" x2="44" y2="40" stroke="#ff453a" stroke-width="3" stroke-linecap="round"/>
+          <line x1="32" y1="28" x2="20" y2="40" stroke="#ff453a" stroke-width="3" stroke-linecap="round"/>
+          <line x1="20" y1="40" x2="40" y2="36" stroke="#ff453a" stroke-width="3" stroke-linecap="round"/>
+          <line x1="44" y1="40" x2="24" y2="36" stroke="#ff453a" stroke-width="3" stroke-linecap="round"/>
+          <line x1="32" y1="48" x2="18" y2="78" stroke="#f2f2f7" stroke-width="3" stroke-linecap="round"/>
+          <line x1="32" y1="48" x2="46" y2="78" stroke="#f2f2f7" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+        <div class="help-pose-text">
+          <strong>Arms crossed → Stop / Reset</strong>
+          <p>Cross your arms on your chest while paused. Same as tapping the red button.</p>
+        </div>
+      </div>
+
+      <h3>Settings</h3>
+      <ul>
+        <li><strong>Voice</strong> — speaks session words and juggle counts.</li>
+        <li><strong>Hands-free</strong> — enable pose controls.</li>
+        <li><strong>Autopause</strong> — pause after ~5s without juggles.</li>
+        <li><strong>Min bounce</strong> — how big a bounce must be to count (lower = more sensitive).</li>
+        <li><strong>Trajectory / Ball / Stats</strong> — overlays for feedback and debugging.</li>
+        <li><strong>From file + Debug step</strong> — test with a video; scrub and step frame by frame.</li>
+      </ul>
+
+      <h3>Install the app</h3>
+      <p><strong>Android (Chrome):</strong> tap <strong>Install</strong> when it appears (top-right), or use the browser menu → Install app. After the first online load it can work offline.</p>
+      <div class="help-ios">
+        <strong>iPhone / iPad (Safari)</strong>
+        <ol>
+          <li>Open this site in Safari.</li>
+          <li>Tap the Share button.</li>
+          <li>Choose <strong>Add to Home Screen</strong>.</li>
+          <li>Tap Add.</li>
+        </ol>
+      </div>
+
+      <h3>Contact</h3>
+      <p class="help-contact">
+        Questions or bugs:<br />
+        Email <a href="mailto:andruwik777@gmail.com">andruwik777@gmail.com</a><br />
+        GitHub issues: <a href="https://github.com/andruwik777/JuggleJs/issues" target="_blank" rel="noopener noreferrer">andruwik777/JuggleJs</a>
+      </p>
+
+      <p class="help-outro">Keep the ball up. Keep the phone down. Break your record — not your screen.</p>
+    </div>
+    <div class="help-footer">
+      <button type="button" id="helpOkBtn" class="help-ok">OK</button>
     </div>
   </div>
   <section id="demos" class="invisible">
