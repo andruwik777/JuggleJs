@@ -22,3 +22,8 @@ alwaysApply: true
 
 - TFLite model requires a local server or GitHub Pages — not `file://`.
 - Respect browser autoplay: video/audio/voice need a user gesture to start.
+
+## Git
+
+- After finishing the requested work, commit and push automatically unless the user explicitly says not to (e.g. “don’t commit”, “don’t push”, “no push”).
+- Follow the usual commit-message style; do not amend unless the user asks.
