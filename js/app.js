@@ -966,7 +966,7 @@ function initSessionUI() {
       closeSettings();
       switchToLive();
     }
-  });z
+  });
   fileStepBackBtn?.addEventListener('click', fileStepBack);
   fileStepForwardBtn?.addEventListener('click', fileStepForward);
   filePlayPauseBtn?.addEventListener('click', filePlayPauseToggle);
