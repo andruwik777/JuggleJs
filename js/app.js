@@ -867,6 +867,8 @@ function onFileVideoLoaded(debug, onComplete) {
   beginFileCountingSession();
   updateVideoSourceUI();
   if (debug) {
+    // File mode must not free-run: index.html video has autoplay for the camera.
+    video.pause();
     STATE.fileStepTime = 0;
     updateFilePlayPauseLabel(false);
     seekAndDetectFileFrame(0, onComplete);
@@ -880,6 +882,7 @@ function loadFileVideo(url, options = {}) {
   stopFrameLoop();
   stopCameraStream();
   releaseFileObjectUrl();
+  video.removeAttribute('autoplay');
   if (url.startsWith('blob:')) STATE.fileObjectUrl = url;
   video.src = url;
   video.load();
@@ -921,6 +924,8 @@ async function switchToLive() {
   stopFrameLoop();
   releaseFileObjectUrl();
   video.removeAttribute('src');
+  video.setAttribute('autoplay', '');
+  video.setAttribute('playsinline', '');
   video.load();
   STATE.videoSource = 'camera';
   STATE.fileStepTime = 0;
