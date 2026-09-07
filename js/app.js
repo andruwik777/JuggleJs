@@ -1,6 +1,6 @@
 // Based on CodePen: https://codepen.io/mediapipe-preview/pen/vYrWvNg
 // Guide: https://ai.google.dev/edge/mediapipe/solutions/vision/object_detector/web_js
-import { ObjectDetector, FilesetResolver } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/vision_bundle.mjs';
+import { ObjectDetector, PoseLandmarker, FilesetResolver } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/vision_bundle.mjs';
 import { Kalman1D } from './kalman1d.js';
 
 const demosSection = document.getElementById('demos');
@@ -22,6 +22,7 @@ const settingsOverlay = document.getElementById('settingsOverlay');
 const settingsCloseBtn = document.getElementById('settingsCloseBtn');
 const settingsDoneBtn = document.getElementById('settingsDoneBtn');
 const voiceCountCheckbox = document.getElementById('voiceCountCheckbox');
+const handsFreeCheckbox = document.getElementById('handsFreeCheckbox');
 const autoPauseCheckbox = document.getElementById('autoPauseCheckbox');
 const showSnakeCheckbox = document.getElementById('showSnakeCheckbox');
 const showBallCheckbox = document.getElementById('showBallCheckbox');
@@ -51,13 +52,18 @@ const AUTO_PAUSE_HINT_MS = 3000;
 const SNAKE_DOT_SIZE = 5;
 const SNAKE_DOT_SIZE_JUGGLE = 10;
 const SNAKE_MIN_RANGE_BALL_FRACTION = 0.5;
+const POSE_HOLD_MS = 1000;
+const POSE_COOLDOWN_MS = 500;
+const POSE_VISIBILITY_MIN = 0.5;
+const POSE_LANDMARKER_MODEL =
+  'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
 
 const JUGGLE_COUNT_WORDS = [
   'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
   'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen', 'Twenty',
 ];
 
-/** @type {{ session: 'notRunning'|'running'|'paused', videoSource: 'camera'|'file', fileObjectUrl: string|null, filePlaybackActive: boolean, fileStepTime: number, juggleCount: number, lastJugglePeakAt: number|null, timer: { startedAt: number|null, pausedAccumMs: number, pauseStartedAt: number|null }, ballState: object[], lastLocalMinY: number|null, kalman: { x: import('./kalman1d.js').Kalman1D|null, y: import('./kalman1d.js').Kalman1D|null, lastT: number|null }, settings: { voice: boolean, autoPause: boolean, showSnake: boolean, showBall: boolean, showTiming: boolean, fileDebug: boolean }, lastVideoTime: number, autoPauseHintUntil: number }} */
+/** @type {{ session: 'notRunning'|'running'|'paused', videoSource: 'camera'|'file', fileObjectUrl: string|null, filePlaybackActive: boolean, fileStepTime: number, juggleCount: number, lastJugglePeakAt: number|null, timer: { startedAt: number|null, pausedAccumMs: number, pauseStartedAt: number|null }, ballState: object[], lastLocalMinY: number|null, kalman: { x: import('./kalman1d.js').Kalman1D|null, y: import('./kalman1d.js').Kalman1D|null, lastT: number|null }, settings: { voice: boolean, handsFree: boolean, autoPause: boolean, showSnake: boolean, showBall: boolean, showTiming: boolean, fileDebug: boolean }, lastVideoTime: number, autoPauseHintUntil: number, pose: { holdAction: null|'start'|'stop', holdSince: number|null, ignoreUntil: number, needsNeutral: boolean } }} */
 const STATE = {
   session: 'notRunning',
   videoSource: 'camera',
@@ -74,13 +80,29 @@ const STATE = {
   ballState: [],
   lastLocalMinY: null,
   kalman: { x: null, y: null, lastT: null },
-  settings: { voice: false, autoPause: true, showSnake: true, showBall: true, showTiming: true, fileDebug: true },
+  settings: {
+    voice: false,
+    handsFree: true,
+    autoPause: true,
+    showSnake: true,
+    showBall: true,
+    showTiming: true,
+    fileDebug: true,
+  },
   lastVideoTime: -1,
   autoPauseHintUntil: 0,
+  pose: {
+    holdAction: null,
+    holdSince: null,
+    ignoreUntil: 0,
+    needsNeutral: false,
+  },
 };
 
 let objectDetector;
+let poseLandmarker;
 let runningMode = 'IMAGE';
+let poseRunningMode = 'IMAGE';
 let preferredVoice = null;
 let rafId = null;
 let ballHighlighter = null;
@@ -126,8 +148,12 @@ function initVoiceCount() {
 }
 
 function speakJuggleCount(n) {
-  if (typeof speechSynthesis === 'undefined') return;
-  const word = JUGGLE_COUNT_WORDS[n - 1] ?? String(n);
+  if (n < 1) return;
+  speakVoiceWord(JUGGLE_COUNT_WORDS[n - 1] ?? String(n));
+}
+
+function speakVoiceWord(word) {
+  if (!isVoiceEnabled() || typeof speechSynthesis === 'undefined') return;
   speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(word);
   utterance.lang = 'en-US';
@@ -137,6 +163,168 @@ function speakJuggleCount(n) {
 }
 
 initVoiceCount();
+
+function isHandsFreeEnabled() {
+  return isIndexPage() && STATE.settings.handsFree;
+}
+
+function shouldRunPoseControls() {
+  return (
+    isHandsFreeEnabled() &&
+    isCameraSource() &&
+    poseLandmarker != null &&
+    STATE.session !== 'running' &&
+    !!video.srcObject
+  );
+}
+
+function landmarkVisible(lm) {
+  return lm && (lm.visibility == null || lm.visibility >= POSE_VISIBILITY_MIN);
+}
+
+function isArmsUpPose(landmarks) {
+  const ls = landmarks[11];
+  const rs = landmarks[12];
+  const lw = landmarks[15];
+  const rw = landmarks[16];
+  if (![ls, rs, lw, rw].every(landmarkVisible)) return false;
+  const margin = 0.02;
+  return lw.y < ls.y - margin && rw.y < rs.y - margin;
+}
+
+function isArmsCrossedPose(landmarks) {
+  const ls = landmarks[11];
+  const rs = landmarks[12];
+  const lw = landmarks[15];
+  const rw = landmarks[16];
+  const lh = landmarks[23];
+  const rh = landmarks[24];
+  if (![ls, rs, lw, rw, lh, rh].every(landmarkVisible)) return false;
+
+  const shoulderY = (ls.y + rs.y) / 2;
+  const hipY = (lh.y + rh.y) / 2;
+  const torso = Math.max(0.15, Math.abs(hipY - shoulderY));
+  const inChest = (w) => w.y > shoulderY - 0.08 * torso && w.y < shoulderY + 0.55 * torso;
+  if (!inChest(lw) || !inChest(rw)) return false;
+
+  const midX = (ls.x + rs.x) / 2;
+  const crossed = (lw.x - midX) * (rw.x - midX) < 0;
+  const shoulderWidth = Math.max(0.08, Math.abs(ls.x - rs.x));
+  const wristsClose = Math.abs(lw.x - rw.x) < shoulderWidth * 1.8;
+  const closeY = Math.abs(lw.y - rw.y) < 0.25 * torso + 0.06;
+  return crossed && wristsClose && closeY;
+}
+
+function setPoseButtonProgress(btn, progress) {
+  if (!btn) return;
+  if (progress <= 0) {
+    btn.classList.remove('session-btn--pose-filling');
+    btn.style.removeProperty('--pose-progress');
+    return;
+  }
+  btn.classList.add('session-btn--pose-filling');
+  btn.style.setProperty('--pose-progress', String(Math.min(1, Math.max(0, progress))));
+}
+
+function clearPoseUiProgress() {
+  setPoseButtonProgress(sessionPrimaryBtn, 0);
+  setPoseButtonProgress(sessionStopBtn, 0);
+}
+
+function resetPoseHoldState(options = {}) {
+  STATE.pose.holdAction = null;
+  STATE.pose.holdSince = null;
+  if (options.clearUi !== false) clearPoseUiProgress();
+}
+
+function beginPoseCooldown() {
+  STATE.pose.ignoreUntil = Date.now() + POSE_COOLDOWN_MS;
+  STATE.pose.needsNeutral = true;
+  resetPoseHoldState();
+}
+
+function classifyPoseAction(landmarks) {
+  const armsUp = isArmsUpPose(landmarks);
+  const armsCrossed = isArmsCrossedPose(landmarks);
+  if (armsUp && armsCrossed) return null;
+  if (armsUp) return 'start';
+  if (armsCrossed) return 'stop';
+  return null;
+}
+
+function applyPoseHoldProgress(action, now) {
+  if (STATE.pose.holdAction !== action) {
+    STATE.pose.holdAction = action;
+    STATE.pose.holdSince = now;
+  }
+  const since = STATE.pose.holdSince ?? now;
+  const progress = Math.min(1, (now - since) / POSE_HOLD_MS);
+  if (action === 'start') {
+    setPoseButtonProgress(sessionPrimaryBtn, progress);
+    setPoseButtonProgress(sessionStopBtn, 0);
+  } else {
+    setPoseButtonProgress(sessionStopBtn, progress);
+    setPoseButtonProgress(sessionPrimaryBtn, 0);
+  }
+  return progress >= 1;
+}
+
+async function processHandsFreePoseFrame() {
+  if (!shouldRunPoseControls()) {
+    resetPoseHoldState();
+    return 0;
+  }
+
+  const now = Date.now();
+  if (now < STATE.pose.ignoreUntil) {
+    resetPoseHoldState();
+    return 0;
+  }
+
+  if (poseRunningMode === 'IMAGE') {
+    poseRunningMode = 'VIDEO';
+    await poseLandmarker.setOptions({ runningMode: 'VIDEO' });
+  }
+
+  const t1 = performance.now();
+  const result = poseLandmarker.detectForVideo(video, t1);
+  const detectMs = Math.round(performance.now() - t1);
+  const landmarks = result?.landmarks?.[0];
+  if (!landmarks) {
+    STATE.pose.needsNeutral = false;
+    resetPoseHoldState();
+    return detectMs;
+  }
+
+  const action = classifyPoseAction(landmarks);
+  if (!action) {
+    STATE.pose.needsNeutral = false;
+    resetPoseHoldState();
+    return detectMs;
+  }
+
+  if (STATE.pose.needsNeutral) {
+    resetPoseHoldState();
+    return detectMs;
+  }
+
+  if (action === 'start' && (STATE.session === 'notRunning' || STATE.session === 'paused')) {
+    if (applyPoseHoldProgress('start', now)) {
+      beginPoseCooldown();
+      if (STATE.session === 'notRunning') startSession();
+      else resumeSession();
+    }
+  } else if (action === 'stop' && STATE.session === 'paused') {
+    if (applyPoseHoldProgress('stop', now)) {
+      beginPoseCooldown();
+      stopSession();
+    }
+  } else {
+    resetPoseHoldState();
+  }
+
+  return detectMs;
+}
 
 function formatSessionTime(ms) {
   const totalSec = Math.max(0, Math.floor(ms / 1000));
@@ -395,7 +583,8 @@ function updateSessionUI() {
   }
 }
 
-function startSession() {
+function startSession(options = {}) {
+  const announce = options.announce !== false;
   resetTrackingState();
   STATE.session = 'running';
   STATE.juggleCount = 0;
@@ -403,6 +592,8 @@ function startSession() {
   resetSessionTimer();
   STATE.timer.startedAt = Date.now();
   hideAutoPauseHint();
+  clearPoseUiProgress();
+  if (announce) speakVoiceWord('Start');
   setJuggleCount(0);
   updateSessionUI();
 }
@@ -418,8 +609,9 @@ function pauseSession(showHint) {
   updateSessionUI();
 }
 
-function resumeSession() {
+function resumeSession(options = {}) {
   if (STATE.session !== 'paused') return;
+  const announce = options.announce !== false;
   if (STATE.timer.pauseStartedAt != null) {
     STATE.timer.pausedAccumMs += Date.now() - STATE.timer.pauseStartedAt;
     STATE.timer.pauseStartedAt = null;
@@ -428,16 +620,21 @@ function resumeSession() {
   STATE.lastJugglePeakAt = Date.now();
   resetTrackingState();
   hideAutoPauseHint();
+  clearPoseUiProgress();
+  if (announce) speakVoiceWord('Resume');
   updateSessionUI();
 }
 
-function stopSession() {
+function stopSession(options = {}) {
+  const announce = options.announce !== false && STATE.session !== 'notRunning';
   STATE.session = 'notRunning';
   STATE.juggleCount = 0;
   STATE.lastJugglePeakAt = null;
   resetSessionTimer();
   resetTrackingState();
   hideAutoPauseHint();
+  clearPoseUiProgress();
+  if (announce) speakVoiceWord('Reset');
   setJuggleCount(0);
   updateSessionUI();
 }
@@ -453,6 +650,7 @@ function checkAutoPause() {
 function openSettings() {
   if (!settingsOverlay) return;
   if (voiceCountCheckbox) voiceCountCheckbox.checked = STATE.settings.voice;
+  if (handsFreeCheckbox) handsFreeCheckbox.checked = STATE.settings.handsFree;
   if (autoPauseCheckbox) autoPauseCheckbox.checked = STATE.settings.autoPause;
   if (showSnakeCheckbox) showSnakeCheckbox.checked = STATE.settings.showSnake;
   if (showBallCheckbox) showBallCheckbox.checked = STATE.settings.showBall;
@@ -471,11 +669,13 @@ function closeSettings() {
 
 function syncSettingsFromUI() {
   if (voiceCountCheckbox) STATE.settings.voice = voiceCountCheckbox.checked;
+  if (handsFreeCheckbox) STATE.settings.handsFree = handsFreeCheckbox.checked;
   if (autoPauseCheckbox) STATE.settings.autoPause = autoPauseCheckbox.checked;
   if (showSnakeCheckbox) STATE.settings.showSnake = showSnakeCheckbox.checked;
   if (showBallCheckbox) STATE.settings.showBall = showBallCheckbox.checked;
   if (showTimingCheckbox) STATE.settings.showTiming = showTimingCheckbox.checked;
   if (fileDebugCheckbox) STATE.settings.fileDebug = fileDebugCheckbox.checked;
+  if (!STATE.settings.handsFree) resetPoseHoldState();
   applyVisualizationSettings();
   updateVideoSourceUI();
 }
@@ -669,7 +869,7 @@ function loadFileVideo(url, options = {}) {
 
 async function switchToFile(file) {
   if (!file || !objectDetector) return;
-  stopSession();
+  stopSession({ announce: false });
   STATE.videoSource = 'file';
   document.body.classList.add('live-active');
   liveView?.classList.add('live-fullscreen');
@@ -685,7 +885,7 @@ async function switchToFile(file) {
 }
 
 async function switchToLive() {
-  stopSession();
+  stopSession({ announce: false });
   stopFrameLoop();
   releaseFileObjectUrl();
   video.removeAttribute('src');
@@ -719,6 +919,7 @@ function initSessionUI() {
     if (e.target === settingsOverlay) closeSettings();
   });
   voiceCountCheckbox?.addEventListener('change', syncSettingsFromUI);
+  handsFreeCheckbox?.addEventListener('change', syncSettingsFromUI);
   autoPauseCheckbox?.addEventListener('change', syncSettingsFromUI);
   showSnakeCheckbox?.addEventListener('change', syncSettingsFromUI);
   showBallCheckbox?.addEventListener('change', syncSettingsFromUI);
@@ -771,13 +972,14 @@ function initSessionUI() {
 
 initSessionUI();
 
-const initializeObjectDetector = async () => {
+const initializeVisionTasks = async () => {
   const vision = await FilesetResolver.forVisionTasks(
     'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm'
   );
   const MODEL_PATH = './models/model_fp16.tflite';
   const DETECTION_CATEGORY_NAME = 'Juggling - v7 2022-07-26 4-53pm';
-  objectDetector = await ObjectDetector.createFromOptions(vision, {
+
+  const objectDetectorPromise = ObjectDetector.createFromOptions(vision, {
     baseOptions: {
       modelAssetPath: MODEL_PATH,
       delegate: 'GPU'
@@ -787,6 +989,27 @@ const initializeObjectDetector = async () => {
     runningMode: runningMode,
     categoryAllowlist: [DETECTION_CATEGORY_NAME]
   });
+
+  const poseLandmarkerPromise = isIndexPage()
+    ? PoseLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: POSE_LANDMARKER_MODEL,
+          delegate: 'GPU'
+        },
+        runningMode: poseRunningMode,
+        numPoses: 1,
+        minPoseDetectionConfidence: 0.5,
+        minPosePresenceConfidence: 0.5,
+        minTrackingConfidence: 0.5,
+      }).catch((err) => {
+        console.warn('Pose Landmarker failed to load; hands-free disabled', err);
+        return null;
+      })
+    : Promise.resolve(null);
+
+  objectDetector = await objectDetectorPromise;
+  poseLandmarker = await poseLandmarkerPromise;
+
   demosSection.classList.remove('invisible');
   window.dispatchEvent(new Event('juggleAppReady'));
   if (isIndexPage() && isCameraSource() && hasGetUserMedia()) {
@@ -795,7 +1018,7 @@ const initializeObjectDetector = async () => {
     console.warn('getUserMedia() is not supported by your browser');
   }
 };
-initializeObjectDetector();
+initializeVisionTasks();
 
 if (hasGetUserMedia() && isIndexPage()) {
   document.body.classList.add('live-active');
@@ -880,6 +1103,7 @@ async function predictWebcam() {
   let detectForVideoMs = 0;
 
   if (shouldRunDetection()) {
+    resetPoseHoldState();
     if (runningMode === 'IMAGE') {
       runningMode = 'VIDEO';
       await objectDetector.setOptions({ runningMode: 'VIDEO' });
@@ -897,6 +1121,13 @@ async function predictWebcam() {
     }
   } else {
     hideTrackingVisuals();
+    if (video.currentTime !== STATE.lastVideoTime) {
+      STATE.lastVideoTime = video.currentTime;
+      detectForVideoMs = await processHandsFreePoseFrame();
+      hadNewFrame = detectForVideoMs > 0 || shouldRunPoseControls();
+    } else if (!shouldRunPoseControls()) {
+      resetPoseHoldState();
+    }
   }
 
   const t3 = performance.now();
@@ -1147,7 +1378,7 @@ function liveSnakeVisualisation() {
 }
 
 function resetJuggleState() {
-  stopSession();
+  stopSession({ announce: false });
   STATE.lastVideoTime = -1;
   if (rafId != null) {
     cancelAnimationFrame(rafId);
