@@ -79,6 +79,8 @@ const POSE_COOLDOWN_MS = 500;
 const POSE_VISIBILITY_MIN = 0.5;
 const POSE_LANDMARKER_MODEL =
   'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+const APP_SHARE_URL = 'https://andruwik777.github.io/JuggleJs/';
+const APP_SHARE_TITLE = 'Football Juggling';
 
 const JUGGLE_COUNT_WORDS = [
   'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
