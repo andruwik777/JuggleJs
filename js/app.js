@@ -25,7 +25,8 @@ const helpOpenBtn = document.getElementById('helpOpenBtn');
 const helpOverlay = document.getElementById('helpOverlay');
 const helpCloseBtn = document.getElementById('helpCloseBtn');
 const helpOkBtn = document.getElementById('helpOkBtn');
-const voiceCountCheckbox = document.getElementById('voiceCountCheckbox');
+const voiceVolumeSlider = document.getElementById('voiceVolumeSlider');
+const voiceVolumeValueEl = document.getElementById('voiceVolumeValue');
 const handsFreeCheckbox = document.getElementById('handsFreeCheckbox');
 const autoPauseCheckbox = document.getElementById('autoPauseCheckbox');
 const minBounceSlider = document.getElementById('minBounceSlider');
@@ -74,7 +75,7 @@ const JUGGLE_COUNT_WORDS = [
   'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen', 'Twenty',
 ];
 
-/** @type {{ session: 'notRunning'|'running'|'paused', videoSource: 'camera'|'file', fileObjectUrl: string|null, filePlaybackActive: boolean, fileStepTime: number, juggleCount: number, lastJugglePeakAt: number|null, timer: { startedAt: number|null, pausedAccumMs: number, pauseStartedAt: number|null }, ballState: object[], lastLocalMinY: number|null, kalman: { x: import('./kalman1d.js').Kalman1D|null, y: import('./kalman1d.js').Kalman1D|null, lastT: number|null }, settings: { voice: boolean, handsFree: boolean, autoPause: boolean, minBounce: number, showSnake: boolean, showBall: boolean, showTiming: boolean, fileDebug: boolean }, lastVideoTime: number, autoPauseHintUntil: number, pose: { holdAction: null|'start'|'stop', holdSince: number|null, ignoreUntil: number, needsNeutral: boolean } }} */
+/** @type {{ session: 'notRunning'|'running'|'paused', videoSource: 'camera'|'file', fileObjectUrl: string|null, filePlaybackActive: boolean, fileStepTime: number, juggleCount: number, lastJugglePeakAt: number|null, timer: { startedAt: number|null, pausedAccumMs: number, pauseStartedAt: number|null }, ballState: object[], lastLocalMinY: number|null, kalman: { x: import('./kalman1d.js').Kalman1D|null, y: import('./kalman1d.js').Kalman1D|null, lastT: number|null }, settings: { voiceVolume: number, handsFree: boolean, autoPause: boolean, minBounce: number, showSnake: boolean, showBall: boolean, showTiming: boolean, fileDebug: boolean }, lastVideoTime: number, autoPauseHintUntil: number, pose: { holdAction: null|'start'|'stop', holdSince: number|null, ignoreUntil: number, needsNeutral: boolean } }} */
 const STATE = {
   session: 'notRunning',
   videoSource: 'camera',
@@ -92,7 +93,7 @@ const STATE = {
   lastLocalMinY: null,
   kalman: { x: null, y: null, lastT: null },
   settings: {
-    voice: false,
+    voiceVolume: 0.5,
     handsFree: true,
     autoPause: true,
     minBounce: 0.2,
@@ -170,6 +171,7 @@ function speakVoiceWord(word) {
   const utterance = new SpeechSynthesisUtterance(word);
   utterance.lang = 'en-US';
   utterance.rate = 1.1;
+  utterance.volume = Math.max(0, Math.min(1, STATE.settings.voiceVolume));
   if (preferredVoice) utterance.voice = preferredVoice;
   speechSynthesis.speak(utterance);
 }
@@ -418,8 +420,19 @@ function setJuggleCount(n) {
 }
 
 function isVoiceEnabled() {
-  if (isIndexPage()) return STATE.settings.voice;
-  return voiceCountCheckbox?.checked ?? false;
+  return STATE.settings.voiceVolume > 0;
+}
+
+function formatVoiceVolumeLabel(volume) {
+  if (volume <= 0) return 'OFF';
+  if (volume >= 1) return 'MAX';
+  return Math.round(volume * 100) + '%';
+}
+
+function syncVoiceVolumeLabel() {
+  if (voiceVolumeValueEl) {
+    voiceVolumeValueEl.textContent = formatVoiceVolumeLabel(STATE.settings.voiceVolume);
+  }
 }
 
 function setPrimarySessionButton(mode) {
@@ -692,7 +705,10 @@ function checkAutoPause() {
 
 function openSettings() {
   if (!settingsOverlay) return;
-  if (voiceCountCheckbox) voiceCountCheckbox.checked = STATE.settings.voice;
+  if (voiceVolumeSlider) {
+    voiceVolumeSlider.value = String(STATE.settings.voiceVolume);
+    syncVoiceVolumeLabel();
+  }
   if (handsFreeCheckbox) handsFreeCheckbox.checked = STATE.settings.handsFree;
   if (autoPauseCheckbox) autoPauseCheckbox.checked = STATE.settings.autoPause;
   if (minBounceSlider) {
@@ -729,7 +745,13 @@ function closeHelp() {
 }
 
 function syncSettingsFromUI() {
-  if (voiceCountCheckbox) STATE.settings.voice = voiceCountCheckbox.checked;
+  if (voiceVolumeSlider) {
+    const v = parseFloat(voiceVolumeSlider.value);
+    if (Number.isFinite(v)) {
+      STATE.settings.voiceVolume = Math.round(v * 10) / 10;
+      syncVoiceVolumeLabel();
+    }
+  }
   if (handsFreeCheckbox) STATE.settings.handsFree = handsFreeCheckbox.checked;
   if (autoPauseCheckbox) STATE.settings.autoPause = autoPauseCheckbox.checked;
   if (minBounceSlider) {
@@ -994,7 +1016,7 @@ function initSessionUI() {
   helpOpenBtn?.addEventListener('click', openHelp);
   helpCloseBtn?.addEventListener('click', closeHelp);
   helpOkBtn?.addEventListener('click', closeHelp);
-  voiceCountCheckbox?.addEventListener('change', syncSettingsFromUI);
+  voiceVolumeSlider?.addEventListener('input', syncSettingsFromUI);
   handsFreeCheckbox?.addEventListener('change', syncSettingsFromUI);
   autoPauseCheckbox?.addEventListener('change', syncSettingsFromUI);
   minBounceSlider?.addEventListener('input', syncSettingsFromUI);

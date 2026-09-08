@@ -711,10 +711,10 @@
         <h2 id="settingsTitle">Settings</h2>
         <button type="button" id="settingsCloseBtn" class="settings-close" aria-label="Close">✕</button>
       </div>
-      <label class="settings-row">
-        <input type="checkbox" id="voiceCountCheckbox" />
-        Voice
-      </label>
+      <div class="settings-row settings-row--slider">
+        <span class="settings-slider-label">Voice <span id="voiceVolumeValue">50%</span></span>
+        <input type="range" id="voiceVolumeSlider" min="0" max="1" step="0.1" value="0.5" aria-label="Voice volume" />
+      </div>
       <label class="settings-row">
         <input type="checkbox" id="handsFreeCheckbox" checked />
         Hands-free
@@ -797,7 +797,7 @@
 
       <h3>Settings</h3>
       <ul>
-        <li><strong>Voice</strong> — speaks session words and juggle counts.</li>
+        <li><strong>Voice</strong> — volume for spoken counts and session words (OFF … MAX).</li>
         <li><strong>Hands-free</strong> — enable pose controls.</li>
         <li><strong>Autopause</strong> — pause after ~5s without juggles.</li>
         <li><strong>Min bounce</strong> — how big a bounce must be to count (lower = more sensitive).</li>
