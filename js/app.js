@@ -848,7 +848,7 @@ function syncSettingsFromUI() {
   if (voiceVolumeSlider) {
     const v = parseFloat(voiceVolumeSlider.value);
     if (Number.isFinite(v)) {
-      STATE.settings.voiceVolume = Math.round(v * 10) / 10;
+      STATE.settings.voiceVolume = Math.round(v * 100) / 100;
       syncVoiceVolumeLabel();
     }
   }
