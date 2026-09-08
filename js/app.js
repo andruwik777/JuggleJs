@@ -773,6 +773,7 @@ function closeSettings() {
 
 function openHelp() {
   if (!helpOverlay) return;
+  closeSettings();
   helpOverlay.classList.remove('hidden');
   helpOverlay.setAttribute('aria-hidden', 'false');
   const body = helpOverlay.querySelector('.help-body');
@@ -787,6 +788,7 @@ function closeHelp() {
 
 function openShare() {
   if (!shareOverlay) return;
+  closeSettings();
   if (shareCopyStatus) shareCopyStatus.textContent = '';
   if (shareNativeBtn) {
     const canShare = typeof navigator.share === 'function';
