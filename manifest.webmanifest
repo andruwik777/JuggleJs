@@ -1,6 +1,6 @@
 {
-  "name": "JuggleJs",
-  "short_name": "JuggleJs",
+  "name": "Football Juggling",
+  "short_name": "Football Juggling",
   "description": "Count football juggles from a live camera or video file.",
   "start_url": "./",
   "scope": "./",
