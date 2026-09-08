@@ -171,7 +171,7 @@ function speakVoiceWord(word) {
   const utterance = new SpeechSynthesisUtterance(word);
   utterance.lang = 'en-US';
   utterance.rate = 1.1;
-  utterance.volume = Math.max(0, Math.min(1, STATE.settings.voiceVolume));
+  utterance.volume = getVoiceVolume();
   if (preferredVoice) utterance.voice = preferredVoice;
   speechSynthesis.speak(utterance);
 }
@@ -420,7 +420,18 @@ function setJuggleCount(n) {
 }
 
 function isVoiceEnabled() {
+  if (!isIndexPage()) {
+    const cb = document.getElementById('voiceCountCheckbox');
+    return cb?.checked ?? STATE.settings.voiceVolume > 0;
+  }
   return STATE.settings.voiceVolume > 0;
+}
+
+function getVoiceVolume() {
+  if (!isIndexPage()) {
+    return isVoiceEnabled() ? 1 : 0;
+  }
+  return Math.max(0, Math.min(1, STATE.settings.voiceVolume));
 }
 
 function formatVoiceVolumeLabel(volume) {
