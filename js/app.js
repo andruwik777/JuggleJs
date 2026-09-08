@@ -27,6 +27,8 @@ const helpCloseBtn = document.getElementById('helpCloseBtn');
 const helpOkBtn = document.getElementById('helpOkBtn');
 const voiceVolumeSlider = document.getElementById('voiceVolumeSlider');
 const voiceVolumeValueEl = document.getElementById('voiceVolumeValue');
+const voiceEverySlider = document.getElementById('voiceEverySlider');
+const voiceEveryValueEl = document.getElementById('voiceEveryValue');
 const handsFreeCheckbox = document.getElementById('handsFreeCheckbox');
 const autoPauseCheckbox = document.getElementById('autoPauseCheckbox');
 const minBounceSlider = document.getElementById('minBounceSlider');
@@ -63,7 +65,7 @@ const AUTO_PAUSE_FILL_MS = AUTO_PAUSE_MS - AUTO_PAUSE_FILL_DELAY_MS;
 const AUTO_PAUSE_HINT_MS = 3000;
 const SNAKE_DOT_SIZE = 5;
 const SNAKE_DOT_SIZE_JUGGLE = 10;
-const SNAKE_MIN_RANGE_BALL_FRACTION = 0.5;
+const VOICE_EVERY_N_OPTIONS = [1, 5, 10, 25, 50];
 const POSE_HOLD_MS = 1000;
 const POSE_COOLDOWN_MS = 500;
 const POSE_VISIBILITY_MIN = 0.5;
@@ -75,7 +77,7 @@ const JUGGLE_COUNT_WORDS = [
   'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen', 'Twenty',
 ];
 
-/** @type {{ session: 'notRunning'|'running'|'paused', videoSource: 'camera'|'file', fileObjectUrl: string|null, filePlaybackActive: boolean, fileStepTime: number, juggleCount: number, lastJugglePeakAt: number|null, timer: { startedAt: number|null, pausedAccumMs: number, pauseStartedAt: number|null }, ballState: object[], lastLocalMinY: number|null, kalman: { x: import('./kalman1d.js').Kalman1D|null, y: import('./kalman1d.js').Kalman1D|null, lastT: number|null }, settings: { voiceVolume: number, handsFree: boolean, autoPause: boolean, minBounce: number, showSnake: boolean, showBall: boolean, showTiming: boolean, fileDebug: boolean }, lastVideoTime: number, autoPauseHintUntil: number, pose: { holdAction: null|'start'|'stop', holdSince: number|null, ignoreUntil: number, needsNeutral: boolean } }} */
+/** @type {{ session: 'notRunning'|'running'|'paused', videoSource: 'camera'|'file', fileObjectUrl: string|null, filePlaybackActive: boolean, fileStepTime: number, juggleCount: number, lastJugglePeakAt: number|null, timer: { startedAt: number|null, pausedAccumMs: number, pauseStartedAt: number|null }, ballState: object[], lastLocalMinY: number|null, kalman: { x: import('./kalman1d.js').Kalman1D|null, y: import('./kalman1d.js').Kalman1D|null, lastT: number|null }, settings: { voiceVolume: number, voiceEveryN: number, handsFree: boolean, autoPause: boolean, minBounce: number, showSnake: boolean, showBall: boolean, showTiming: boolean, fileDebug: boolean }, lastVideoTime: number, autoPauseHintUntil: number, pose: { holdAction: null|'start'|'stop', holdSince: number|null, ignoreUntil: number, needsNeutral: boolean } }} */
 const STATE = {
   session: 'notRunning',
   videoSource: 'camera',
@@ -94,6 +96,7 @@ const STATE = {
   kalman: { x: null, y: null, lastT: null },
   settings: {
     voiceVolume: 0.5,
+    voiceEveryN: 1,
     handsFree: true,
     autoPause: true,
     minBounce: 0.2,
@@ -162,6 +165,8 @@ function initVoiceCount() {
 
 function speakJuggleCount(n) {
   if (n < 1) return;
+  const every = STATE.settings.voiceEveryN > 0 ? STATE.settings.voiceEveryN : 1;
+  if (n % every !== 0) return;
   speakVoiceWord(JUGGLE_COUNT_WORDS[n - 1] ?? String(n));
 }
 
@@ -446,6 +451,17 @@ function syncVoiceVolumeLabel() {
   }
 }
 
+function voiceEveryNToSliderIndex(everyN) {
+  const idx = VOICE_EVERY_N_OPTIONS.indexOf(everyN);
+  return idx >= 0 ? idx : 0;
+}
+
+function syncVoiceEveryLabel() {
+  if (voiceEveryValueEl) {
+    voiceEveryValueEl.textContent = String(STATE.settings.voiceEveryN);
+  }
+}
+
 function setPrimarySessionButton(mode) {
   if (!sessionPrimaryBtn) return;
   const playIcon = sessionPrimaryBtn.querySelector('.session-btn__icon--play');
@@ -720,6 +736,10 @@ function openSettings() {
     voiceVolumeSlider.value = String(STATE.settings.voiceVolume);
     syncVoiceVolumeLabel();
   }
+  if (voiceEverySlider) {
+    voiceEverySlider.value = String(voiceEveryNToSliderIndex(STATE.settings.voiceEveryN));
+    syncVoiceEveryLabel();
+  }
   if (handsFreeCheckbox) handsFreeCheckbox.checked = STATE.settings.handsFree;
   if (autoPauseCheckbox) autoPauseCheckbox.checked = STATE.settings.autoPause;
   if (minBounceSlider) {
@@ -761,6 +781,13 @@ function syncSettingsFromUI() {
     if (Number.isFinite(v)) {
       STATE.settings.voiceVolume = Math.round(v * 10) / 10;
       syncVoiceVolumeLabel();
+    }
+  }
+  if (voiceEverySlider) {
+    const idx = parseInt(voiceEverySlider.value, 10);
+    if (Number.isFinite(idx) && VOICE_EVERY_N_OPTIONS[idx] != null) {
+      STATE.settings.voiceEveryN = VOICE_EVERY_N_OPTIONS[idx];
+      syncVoiceEveryLabel();
     }
   }
   if (handsFreeCheckbox) STATE.settings.handsFree = handsFreeCheckbox.checked;
@@ -1028,6 +1055,7 @@ function initSessionUI() {
   helpCloseBtn?.addEventListener('click', closeHelp);
   helpOkBtn?.addEventListener('click', closeHelp);
   voiceVolumeSlider?.addEventListener('input', syncSettingsFromUI);
+  voiceEverySlider?.addEventListener('input', syncSettingsFromUI);
   handsFreeCheckbox?.addEventListener('change', syncSettingsFromUI);
   autoPauseCheckbox?.addEventListener('change', syncSettingsFromUI);
   minBounceSlider?.addEventListener('input', syncSettingsFromUI);

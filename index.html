@@ -310,7 +310,7 @@
     .settings-row--slider .settings-slider-label {
       flex: 0 0 auto;
       white-space: nowrap;
-      min-width: 7.5rem;
+      min-width: 8.5rem;
     }
     .settings-row--slider input[type="range"] {
       flex: 1 1 auto;
@@ -715,6 +715,10 @@
         <span class="settings-slider-label">Voice <span id="voiceVolumeValue">50%</span></span>
         <input type="range" id="voiceVolumeSlider" min="0" max="1" step="0.1" value="0.5" aria-label="Voice volume" />
       </div>
+      <div class="settings-row settings-row--slider">
+        <span class="settings-slider-label">Say every <span id="voiceEveryValue">1</span></span>
+        <input type="range" id="voiceEverySlider" min="0" max="4" step="1" value="0" aria-label="Say every N juggles" />
+      </div>
       <label class="settings-row">
         <input type="checkbox" id="handsFreeCheckbox" checked />
         Hands-free
@@ -798,6 +802,7 @@
       <h3>Settings</h3>
       <ul>
         <li><strong>Voice</strong> — volume for spoken counts and session words (OFF … MAX).</li>
+        <li><strong>Say every</strong> — speak the count every N juggles (session words always speak).</li>
         <li><strong>Hands-free</strong> — enable pose controls.</li>
         <li><strong>Autopause</strong> — pause after ~5s without juggles.</li>
         <li><strong>Min bounce</strong> — how big a bounce must be to count (lower = more sensitive).</li>
