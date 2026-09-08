@@ -324,6 +324,12 @@
       gap: 8px;
       padding: 8px 0 4px;
     }
+    .settings-source-row {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+    }
     .settings-source-btn {
       width: 100%;
       padding: 12px;
@@ -334,6 +340,11 @@
       background: rgba(0, 127, 139, 0.22);
       color: #7dd3de;
       border: 1px solid rgba(125, 211, 222, 0.35);
+    }
+    .settings-source-row .settings-source-btn {
+      width: auto;
+      flex: 0 0 auto;
+      padding: 12px 16px;
     }
     .settings-source-btn:disabled {
       opacity: 0.45;
@@ -748,8 +759,10 @@
         Debug step (file)
       </label>
       <div class="settings-source-actions">
-        <button type="button" id="fromFileBtn" class="settings-source-btn">From file</button>
-        <button type="button" id="liveSourceBtn" class="settings-source-btn" disabled>Live</button>
+        <div class="settings-source-row">
+          <button type="button" id="liveSourceBtn" class="settings-source-btn" disabled>Live</button>
+          <button type="button" id="fromFileBtn" class="settings-source-btn">File</button>
+        </div>
         <button type="button" id="helpOpenBtn" class="settings-source-btn settings-source-btn--help">Help</button>
       </div>
       <button type="button" id="settingsDoneBtn" class="settings-done">Done</button>
