@@ -1,5 +1,5 @@
 /* JuggleJs service worker — offline cache for app shell + MediaPipe assets. */
-const CACHE_VERSION = 'jugglejs-v13';
+const CACHE_VERSION = 'jugglejs-v14';
 const APP_SHELL = [
   './',
   './index.html',
@@ -9,6 +9,7 @@ const APP_SHELL = [
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
+  './icons/share-qr.png',
 ];
 
 const MEDIAPIPE_ASSETS = [

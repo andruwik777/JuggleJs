@@ -25,6 +25,14 @@ const helpOpenBtn = document.getElementById('helpOpenBtn');
 const helpOverlay = document.getElementById('helpOverlay');
 const helpCloseBtn = document.getElementById('helpCloseBtn');
 const helpOkBtn = document.getElementById('helpOkBtn');
+const shareOpenBtn = document.getElementById('shareOpenBtn');
+const shareOverlay = document.getElementById('shareOverlay');
+const shareCloseBtn = document.getElementById('shareCloseBtn');
+const shareOkBtn = document.getElementById('shareOkBtn');
+const shareLinkBtn = document.getElementById('shareLinkBtn');
+const shareCopyBtn = document.getElementById('shareCopyBtn');
+const shareNativeBtn = document.getElementById('shareNativeBtn');
+const shareCopyStatus = document.getElementById('shareCopyStatus');
 const voiceVolumeSlider = document.getElementById('voiceVolumeSlider');
 const voiceVolumeValueEl = document.getElementById('voiceVolumeValue');
 const voiceEverySlider = document.getElementById('voiceEverySlider');
@@ -775,6 +783,62 @@ function closeHelp() {
   helpOverlay.setAttribute('aria-hidden', 'true');
 }
 
+function openShare() {
+  if (!shareOverlay) return;
+  if (shareCopyStatus) shareCopyStatus.textContent = '';
+  if (shareNativeBtn) {
+    const canShare = typeof navigator.share === 'function';
+    shareNativeBtn.classList.toggle('hidden', !canShare);
+  }
+  shareOverlay.classList.remove('hidden');
+  shareOverlay.setAttribute('aria-hidden', 'false');
+  const body = shareOverlay.querySelector('.help-body');
+  if (body) body.scrollTop = 0;
+}
+
+function closeShare() {
+  if (!shareOverlay) return;
+  shareOverlay.classList.add('hidden');
+  shareOverlay.setAttribute('aria-hidden', 'true');
+}
+
+async function copyShareUrl() {
+  if (shareCopyStatus) shareCopyStatus.textContent = '';
+  try {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      await navigator.clipboard.writeText(APP_SHARE_URL);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = APP_SHARE_URL;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    if (shareCopyStatus) shareCopyStatus.textContent = 'Copied';
+  } catch (err) {
+    console.warn('Copy failed', err);
+    if (shareCopyStatus) shareCopyStatus.textContent = 'Copy failed';
+  }
+}
+
+async function nativeShareApp() {
+  if (typeof navigator.share !== 'function') return;
+  try {
+    await navigator.share({
+      title: APP_SHARE_TITLE,
+      text: 'Count football juggles with your phone camera.',
+      url: APP_SHARE_URL,
+    });
+  } catch (err) {
+    if (err && err.name === 'AbortError') return;
+    console.warn('Share failed', err);
+  }
+}
+
 function syncSettingsFromUI() {
   if (voiceVolumeSlider) {
     const v = parseFloat(voiceVolumeSlider.value);
@@ -1054,6 +1118,12 @@ function initSessionUI() {
   helpOpenBtn?.addEventListener('click', openHelp);
   helpCloseBtn?.addEventListener('click', closeHelp);
   helpOkBtn?.addEventListener('click', closeHelp);
+  shareOpenBtn?.addEventListener('click', openShare);
+  shareCloseBtn?.addEventListener('click', closeShare);
+  shareOkBtn?.addEventListener('click', closeShare);
+  shareCopyBtn?.addEventListener('click', copyShareUrl);
+  shareLinkBtn?.addEventListener('click', copyShareUrl);
+  shareNativeBtn?.addEventListener('click', nativeShareApp);
   voiceVolumeSlider?.addEventListener('input', syncSettingsFromUI);
   voiceEverySlider?.addEventListener('input', syncSettingsFromUI);
   handsFreeCheckbox?.addEventListener('change', syncSettingsFromUI);
