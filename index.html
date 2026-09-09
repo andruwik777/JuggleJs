@@ -653,15 +653,18 @@
     }
     .file-transport-buttons {
       display: flex;
-      align-items: center;
-      justify-content: center;
+      align-items: stretch;
+      justify-content: stretch;
       gap: 8px;
-      flex-wrap: wrap;
+      width: 100%;
     }
+    /* FILE only: clear transport bar; LIVE snake bottom stays unchanged. */
     body.video-source-file .snake-frame {
-      bottom: calc(6.5rem + env(safe-area-inset-bottom));
+      bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 7.25rem);
     }
     .file-transport-btn {
+      flex: 1 1 0;
+      min-width: 0;
       border: none;
       border-radius: 8px;
       padding: 8px 12px;
