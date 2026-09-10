@@ -164,7 +164,10 @@ function sessionDurationEvent(elapsedMs) {
   if (min < 2) return 'session_dur_1';
   if (min < 5) return 'session_dur_2';
   if (min < 10) return 'session_dur_5';
-  return 'session_dur_10';
+  if (min < 25) return 'session_dur_10';
+  if (min < 50) return 'session_dur_25';
+  if (min < 100) return 'session_dur_50';
+  return 'session_dur_100';
 }
 
 function juggleCountEvent(count) {
@@ -172,7 +175,11 @@ function juggleCountEvent(count) {
   if (n <= 0) return 'juggles_0';
   if (n <= 5) return 'juggles_1_5';
   if (n <= 20) return 'juggles_6_20';
-  return 'juggles_20_plus';
+  if (n <= 50) return 'juggles_20_50';
+  if (n <= 100) return 'juggles_50_100';
+  if (n <= 500) return 'juggles_100_500';
+  if (n <= 1000) return 'juggles_500_1000';
+  return 'juggles_1000_plus';
 }
 
 function voiceVolumeEvent(volume) {
