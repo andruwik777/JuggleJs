@@ -144,6 +144,50 @@ function isIndexPage() {
   return !isTestHarnessPage();
 }
 
+/** Soft analytics via Microsoft Clarity. Never throws; no-ops if Clarity is unavailable. */
+function trackEvent(name) {
+  if (!isIndexPage() || !name) return;
+  try {
+    if (typeof window.clarity === 'function') {
+      window.clarity('event', name);
+    }
+  } catch (_) {
+    /* ignore network / script errors */
+  }
+}
+
+function sessionDurationEvent(elapsedMs) {
+  const min = Math.floor(Math.max(0, elapsedMs) / 60000);
+  if (min < 1) return 'session_dur_0';
+  if (min < 2) return 'session_dur_1';
+  if (min < 5) return 'session_dur_2';
+  if (min < 10) return 'session_dur_5';
+  return 'session_dur_10';
+}
+
+function juggleCountEvent(count) {
+  const n = Math.max(0, count | 0);
+  if (n <= 0) return 'juggles_0';
+  if (n <= 5) return 'juggles_1_5';
+  if (n <= 20) return 'juggles_6_20';
+  return 'juggles_20_plus';
+}
+
+function voiceVolumeEvent(volume) {
+  if (volume <= 0) return 'voice_off';
+  if (volume < 0.34) return 'voice_low';
+  if (volume < 0.67) return 'voice_mid';
+  return 'voice_high';
+}
+
+let lastTrackedVoiceEvent = null;
+let lastTrackedHandsFree = null;
+
+function trackSessionSummary(elapsedMs, juggleCount) {
+  trackEvent(sessionDurationEvent(elapsedMs));
+  trackEvent(juggleCountEvent(juggleCount));
+}
+
 function isCameraSource() {
   return isIndexPage() && STATE.videoSource === 'camera';
 }
@@ -341,13 +385,13 @@ async function processHandsFreePoseFrame() {
   if (action === 'start' && (STATE.session === 'notRunning' || STATE.session === 'paused')) {
     if (applyPoseHoldProgress('start', now)) {
       beginPoseCooldown();
-      if (STATE.session === 'notRunning') startSession();
-      else resumeSession();
+      if (STATE.session === 'notRunning') startSession({ source: 'handsfree' });
+      else resumeSession({ source: 'handsfree' });
     }
   } else if (action === 'stop' && STATE.session === 'paused') {
     if (applyPoseHoldProgress('stop', now)) {
       beginPoseCooldown();
-      stopSession();
+      stopSession({ source: 'handsfree' });
     }
   } else {
     resetPoseHoldState();
@@ -649,6 +693,7 @@ function updateSessionUI() {
 
 function startSession(options = {}) {
   const announce = options.announce !== false;
+  const source = options.source === 'handsfree' ? 'handsfree' : 'tap';
   resetTrackingState();
   STATE.session = 'running';
   STATE.juggleCount = 0;
@@ -660,11 +705,14 @@ function startSession(options = {}) {
   if (announce) speakVoiceWord('Started');
   setJuggleCount(0);
   updateSessionUI();
+  trackEvent(source === 'handsfree' ? 'start_handsfree' : 'start_tap');
+  trackEvent(STATE.videoSource === 'file' ? 'source_file' : 'source_live');
 }
 
 function pauseSession(showHint, options = {}) {
   if (STATE.session !== 'running') return;
   const announce = options.announce !== false;
+  const source = options.source === 'auto' ? 'auto' : 'tap';
   STATE.session = 'paused';
   if (STATE.timer.startedAt != null && STATE.timer.pauseStartedAt == null) {
     STATE.timer.pauseStartedAt = Date.now();
@@ -674,11 +722,13 @@ function pauseSession(showHint, options = {}) {
   if (showHint) showAutoPauseHint();
   if (announce) speakVoiceWord('Paused');
   updateSessionUI();
+  trackEvent(source === 'auto' ? 'pause_auto' : 'pause_tap');
 }
 
 function resumeSession(options = {}) {
   if (STATE.session !== 'paused') return;
   const announce = options.announce !== false;
+  const source = options.source === 'handsfree' ? 'handsfree' : 'tap';
   if (STATE.timer.pauseStartedAt != null) {
     STATE.timer.pausedAccumMs += Date.now() - STATE.timer.pauseStartedAt;
     STATE.timer.pauseStartedAt = null;
@@ -690,10 +740,16 @@ function resumeSession(options = {}) {
   clearPoseUiProgress();
   if (announce) speakVoiceWord('Resumed');
   updateSessionUI();
+  trackEvent(source === 'handsfree' ? 'resume_handsfree' : 'resume_tap');
 }
 
 function stopSession(options = {}) {
-  const announce = options.announce !== false && STATE.session !== 'notRunning';
+  const wasActive = STATE.session !== 'notRunning';
+  const elapsedMs = wasActive ? getSessionElapsedMs() : 0;
+  const juggles = STATE.juggleCount;
+  const announce = options.announce !== false && wasActive;
+  const shouldTrack = options.track !== false && wasActive;
+  const source = options.source || 'tap';
   STATE.session = 'notRunning';
   STATE.juggleCount = 0;
   STATE.lastJugglePeakAt = null;
@@ -704,6 +760,13 @@ function stopSession(options = {}) {
   if (announce) speakVoiceWord('Stopped');
   setJuggleCount(0);
   updateSessionUI();
+  if (shouldTrack) {
+    if (source === 'handsfree') trackEvent('stop_handsfree');
+    else if (source === 'switch') trackEvent('stop_switch');
+    else if (source === 'leave') trackEvent('stop_leave');
+    else trackEvent('stop_tap');
+    trackSessionSummary(elapsedMs, juggles);
+  }
 }
 
 function updateAutoPauseProgressUi() {
@@ -737,7 +800,7 @@ function checkAutoPause() {
   if (STATE.session !== 'running' || STATE.lastJugglePeakAt == null) return;
   updateAutoPauseProgressUi();
   if (Date.now() - STATE.lastJugglePeakAt >= AUTO_PAUSE_MS) {
-    pauseSession(true);
+    pauseSession(true, { source: 'auto' });
   }
 }
 
@@ -764,6 +827,7 @@ function openSettings() {
   updateVideoSourceUI();
   settingsOverlay.classList.remove('hidden');
   settingsOverlay.setAttribute('aria-hidden', 'false');
+  trackEvent('settings_open');
 }
 
 function closeSettings() {
@@ -779,6 +843,7 @@ function openHelp() {
   helpOverlay.setAttribute('aria-hidden', 'false');
   const body = helpOverlay.querySelector('.help-body');
   if (body) body.scrollTop = 0;
+  trackEvent('help_open');
 }
 
 function closeHelp() {
@@ -799,6 +864,7 @@ function openShare() {
   shareOverlay.setAttribute('aria-hidden', 'false');
   const body = shareOverlay.querySelector('.help-body');
   if (body) body.scrollTop = 0;
+  trackEvent('share_open');
 }
 
 function closeShare() {
@@ -824,6 +890,7 @@ async function copyShareUrl() {
       document.body.removeChild(ta);
     }
     if (shareCopyStatus) shareCopyStatus.textContent = 'Copied';
+    trackEvent('share_copy');
   } catch (err) {
     console.warn('Copy failed', err);
     if (shareCopyStatus) shareCopyStatus.textContent = 'Copy failed';
@@ -838,6 +905,7 @@ async function nativeShareApp() {
       text: 'Count football juggles with your phone camera.',
       url: APP_SHARE_URL,
     });
+    trackEvent('share_native');
   } catch (err) {
     if (err && err.name === 'AbortError') return;
     console.warn('Share failed', err);
@@ -875,6 +943,16 @@ function syncSettingsFromUI() {
   if (!STATE.settings.handsFree) resetPoseHoldState();
   applyVisualizationSettings();
   updateVideoSourceUI();
+
+  const voiceEvent = voiceVolumeEvent(STATE.settings.voiceVolume);
+  if (voiceEvent !== lastTrackedVoiceEvent) {
+    lastTrackedVoiceEvent = voiceEvent;
+    trackEvent(voiceEvent);
+  }
+  if (lastTrackedHandsFree !== STATE.settings.handsFree) {
+    lastTrackedHandsFree = STATE.settings.handsFree;
+    trackEvent(STATE.settings.handsFree ? 'hands_free_on' : 'hands_free_off');
+  }
 }
 
 function stopCameraStream() {
@@ -1069,13 +1147,14 @@ function loadFileVideo(url, options = {}) {
 
 async function switchToFile(file) {
   if (!file || !objectDetector) return;
-  stopSession({ announce: false });
+  stopSession({ announce: false, source: 'switch' });
   STATE.videoSource = 'file';
   document.body.classList.add('live-active');
   liveView?.classList.add('live-fullscreen');
   const url = URL.createObjectURL(file);
   try {
     await loadFileVideo(url, { debug: STATE.settings.fileDebug });
+    trackEvent('source_file');
   } catch (err) {
     console.error(err);
     releaseFileObjectUrl();
@@ -1085,7 +1164,7 @@ async function switchToFile(file) {
 }
 
 async function switchToLive() {
-  stopSession({ announce: false });
+  stopSession({ announce: false, source: 'switch' });
   stopFrameLoop();
   releaseFileObjectUrl();
   video.removeAttribute('src');
@@ -1096,6 +1175,7 @@ async function switchToLive() {
   STATE.fileStepTime = 0;
   updateVideoSourceUI();
   updateSessionUI();
+  trackEvent('source_live');
   if (objectDetector && hasGetUserMedia()) {
     await enableCam();
   }
@@ -1105,13 +1185,13 @@ function initSessionUI() {
   if (!isIndexPage()) return;
 
   sessionPrimaryBtn?.addEventListener('click', () => {
-    if (STATE.session === 'notRunning') startSession();
-    else if (STATE.session === 'running') pauseSession(false);
-    else if (STATE.session === 'paused') resumeSession();
+    if (STATE.session === 'notRunning') startSession({ source: 'tap' });
+    else if (STATE.session === 'running') pauseSession(false, { source: 'tap' });
+    else if (STATE.session === 'paused') resumeSession({ source: 'tap' });
   });
 
   sessionStopBtn?.addEventListener('click', () => {
-    if (STATE.session !== 'notRunning') stopSession();
+    if (STATE.session !== 'notRunning') stopSession({ source: 'tap' });
   });
 
   sessionMenuBtn?.addEventListener('click', openSettings);
@@ -1240,6 +1320,7 @@ function initPwaInstallUi() {
   window.addEventListener('appinstalled', () => {
     deferredPwaInstallPrompt = null;
     hidePwaInstallButton();
+    trackEvent('pwa_install');
   });
 
   pwaInstallBtn.addEventListener('click', (event) => {
@@ -1268,6 +1349,17 @@ function registerServiceWorker() {
 
 initSessionUI();
 registerServiceWorker();
+
+if (isIndexPage()) {
+  trackEvent('app_open');
+  lastTrackedVoiceEvent = voiceVolumeEvent(STATE.settings.voiceVolume);
+  lastTrackedHandsFree = STATE.settings.handsFree;
+  window.addEventListener('pagehide', () => {
+    if (STATE.session === 'notRunning') return;
+    trackEvent('stop_leave');
+    trackSessionSummary(getSessionElapsedMs(), STATE.juggleCount);
+  });
+}
 
 const initializeVisionTasks = async () => {
   const vision = await FilesetResolver.forVisionTasks(
