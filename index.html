@@ -398,6 +398,18 @@
       margin: 0;
       font-size: 1.25rem;
     }
+    .help-header-left {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      min-width: 0;
+    }
+    .help-version {
+      font-size: 11px;
+      font-weight: 400;
+      color: rgba(255, 255, 255, 0.4);
+      letter-spacing: 0.02em;
+    }
     .help-close {
       width: 40px;
       height: 40px;
@@ -867,7 +879,10 @@
   </div>
   <div id="helpOverlay" class="help-overlay hidden" aria-hidden="true" role="dialog" aria-labelledby="helpTitle">
     <div class="help-header">
-      <h2 id="helpTitle">Help</h2>
+      <div class="help-header-left">
+        <h2 id="helpTitle">Help</h2>
+        <span id="helpAppVersion" class="help-version"></span>
+      </div>
       <button type="button" id="helpCloseBtn" class="help-close" aria-label="Close">✕</button>
     </div>
     <div class="help-body">
@@ -958,6 +973,7 @@
     </div>
   </section>
 
+  <script src="./js/version.js"></script>
   <script type="module" src="js/app.js"></script>
 </body>
 </html>

@@ -3,6 +3,8 @@
 import { ObjectDetector, PoseLandmarker, FilesetResolver } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/vision_bundle.mjs';
 import { Kalman1D } from './kalman1d.js';
 
+const APP_CACHE_VERSION = self.APP_CACHE_VERSION || 'unknown';
+
 const demosSection = document.getElementById('demos');
 const video = document.getElementById('webcam');
 const liveView = document.getElementById('liveView');
@@ -839,11 +841,17 @@ function closeSettings() {
 function openHelp() {
   if (!helpOverlay) return;
   closeSettings();
+  syncHelpAppVersion();
   helpOverlay.classList.remove('hidden');
   helpOverlay.setAttribute('aria-hidden', 'false');
   const body = helpOverlay.querySelector('.help-body');
   if (body) body.scrollTop = 0;
   trackEvent('help_open');
+}
+
+function syncHelpAppVersion() {
+  const el = document.getElementById('helpAppVersion');
+  if (el) el.textContent = APP_CACHE_VERSION;
 }
 
 function closeHelp() {
@@ -1349,6 +1357,7 @@ function registerServiceWorker() {
 
 initSessionUI();
 registerServiceWorker();
+syncHelpAppVersion();
 
 if (isIndexPage()) {
   trackEvent('app_open');

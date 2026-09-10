@@ -1,10 +1,12 @@
 /* JuggleJs service worker — offline cache for app shell + MediaPipe assets. */
-const CACHE_VERSION = 'jugglejs-v19';
+importScripts('./js/version.js');
+const CACHE_VERSION = self.APP_CACHE_VERSION;
 const APP_SHELL = [
   './',
   './index.html',
   './js/app.js',
   './js/kalman1d.js',
+  './js/version.js',
   './models/model_fp16.tflite',
   './manifest.webmanifest',
   './icons/icon-192.png',
