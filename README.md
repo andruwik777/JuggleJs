@@ -8,6 +8,14 @@ Inspired by https://github.com/Logan1904/JuggleNet.git
 
 https://andruwik777.github.io/JuggleJs
 
+## Features
+
+- Hands-free start/stop (Pose Landmarker)
+- Voice count
+- Share screen
+- PWA (installable / offline shell)
+- Analytics: [Microsoft Clarity](https://clarity.microsoft.com/) (project id `yga46b7x6l`)
+
 ## Demo
 
 <p align="center">
