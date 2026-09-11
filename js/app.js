@@ -12,6 +12,7 @@ const videoStage = document.getElementById('videoStage');
 const aiMsEl = document.getElementById('aiMs');
 const postAiMsEl = document.getElementById('postAiMs');
 const totalMsFpsEl = document.getElementById('totalMsFps');
+const videoResEl = document.getElementById('videoRes');
 const juggleCountEl = document.getElementById('juggleCount');
 const sessionCountEl = document.getElementById('sessionCount');
 const sessionPrimaryBtn = document.getElementById('sessionPrimaryBtn');
@@ -1546,6 +1547,7 @@ async function predictWebcam() {
     aiMsEl.textContent = 'AI: ' + detectForVideoMs + ' ms';
     postAiMsEl.textContent = 'PostAI: ' + postAiMs + ' ms';
     totalMsFpsEl.textContent = 'Total: ' + predictWebcamMs + ' ms / ' + fps.toFixed(1) + ' FPS';
+    updateVideoResolutionLabel();
   }
   rafId = window.requestAnimationFrame(predictWebcam);
 }
@@ -1608,16 +1610,32 @@ function setJuggleInBallState(result) {
   peak.bottomText = String(result.ratio);
 }
 
-function displayVideoDetections(result) {
-  const container = videoStage || liveView;
+function updateVideoResolutionLabel() {
+  if (!videoResEl) return;
+  const w = video.videoWidth;
+  const h = video.videoHeight;
+  videoResEl.textContent = w > 0 && h > 0 ? w + '×' + h : '—×—';
+}
+
+function ensureBallHighlighter(container) {
   if (!ballHighlighter) {
     ballHighlighter = document.createElement('div');
     ballHighlighter.setAttribute('class', 'highlighter');
+    const meta = document.createElement('div');
+    meta.setAttribute('class', 'highlighter-meta');
+    ballHighlighter.appendChild(meta);
     container.appendChild(ballHighlighter);
   }
+  return ballHighlighter.querySelector('.highlighter-meta');
+}
+
+function displayVideoDetections(result) {
+  const container = videoStage || liveView;
+  const metaEl = ensureBallHighlighter(container);
   const t = Date.now();
   const dtSec = STATE.kalman.lastT != null ? (t - STATE.kalman.lastT) / 1000 : 0;
   STATE.kalman.lastT = t;
+  updateVideoResolutionLabel();
 
   const detection = result.detections && result.detections[0];
   if (detection && detection.boundingBox) {
@@ -1664,14 +1682,24 @@ function displayVideoDetections(result) {
     if (juggleResult.ratio != null) setJuggleInBallState(juggleResult);
 
     if (isShowBall()) {
-      const ballLeft = isVideoDisplayMirrored()
-        ? dw - centerXDisplay - dDisplay / 2
-        : centerXDisplay - dDisplay / 2;
-      ballHighlighter.style.left = ballLeft + 'px';
-      ballHighlighter.style.top = (centerYDisplay - dDisplay / 2) + 'px';
-      ballHighlighter.style.width = dDisplay + 'px';
-      ballHighlighter.style.height = dDisplay + 'px';
+      const boxW = b.width * sx;
+      const boxH = b.height * sy;
+      const boxLeft = isVideoDisplayMirrored()
+        ? dw - (b.originX + b.width) * sx
+        : b.originX * sx;
+      const boxTop = b.originY * sy;
+      ballHighlighter.style.left = boxLeft + 'px';
+      ballHighlighter.style.top = boxTop + 'px';
+      ballHighlighter.style.width = boxW + 'px';
+      ballHighlighter.style.height = boxH + 'px';
       ballHighlighter.style.display = 'block';
+      if (metaEl) {
+        metaEl.textContent =
+          'x:' + Math.round(b.originX) +
+          ' y:' + Math.round(b.originY) +
+          ' w:' + Math.round(b.width) +
+          ' h:' + Math.round(b.height);
+      }
     } else {
       ballHighlighter.style.display = 'none';
     }

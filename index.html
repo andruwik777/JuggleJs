@@ -50,11 +50,28 @@
     }
     .highlighter {
       background: none;
-      border: 5px solid #cd32b8;
-      border-radius: 50%;
+      border: 2px solid #cd32b8;
+      border-radius: 0;
       z-index: 1;
       position: absolute;
       box-sizing: border-box;
+      pointer-events: none;
+      display: none;
+    }
+    .highlighter-meta {
+      position: absolute;
+      left: 0;
+      bottom: 100%;
+      margin-bottom: 1px;
+      padding: 1px 4px;
+      font-size: 10px;
+      line-height: 1.2;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      color: #fff;
+      background: rgba(70, 70, 70, 0.88);
+      border-radius: 2px 2px 0 0;
+      pointer-events: none;
     }
     .session-bar {
       --session-count-size: 2rem;
@@ -968,6 +985,7 @@
           <span id="aiMs">AI: — ms</span>
           <span id="postAiMs">PostAI: — ms</span>
           <span id="totalMsFps">Total: — ms / — FPS</span>
+          <span id="videoRes">—×—</span>
         </div>
       </div>
     </div>
