@@ -76,6 +76,8 @@ const AUTO_PAUSE_FILL_MS = AUTO_PAUSE_MS - AUTO_PAUSE_FILL_DELAY_MS;
 const AUTO_PAUSE_HINT_MS = 3000;
 const SNAKE_DOT_SIZE = 5;
 const SNAKE_DOT_SIZE_JUGGLE = 10;
+/** Keep the newest snake dots fully on-screen (right edge inset). */
+const SNAKE_RIGHT_INSET_PX = SNAKE_DOT_SIZE_JUGGLE;
 const SNAKE_MIN_RANGE_BALL_FRACTION = 0.5;
 const VOICE_EVERY_N_OPTIONS = [1, 5, 10, 25, 50];
 const POSE_HOLD_MS = 1000;
@@ -1766,7 +1768,7 @@ function liveSnakeVisualisation() {
     const half = dotSize / 2;
     const cap = STATE_BUFFER_CAPACITY;
     const xFrac = cap > 1 ? ((cap - n) + i) / (cap - 1) : 0.5;
-    const x = xFrac * frameW;
+    const x = xFrac * Math.max(0, frameW - SNAKE_RIGHT_INSET_PX);
     const yFrac = snakeFloorMode ? 1 : (pt.y - minY) * yScale;
     const y = yFrac * frameH;
     const el = snakeDots[i];
