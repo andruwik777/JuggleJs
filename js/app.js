@@ -117,7 +117,7 @@ const STATE = {
   ballState: [],
   lastLocalMinY: null,
   lastLocalMinYCam: null,
-  kalman: { x: null, y: null, lastT: null },
+  kalman: { y: null, lastT: null, lastX: null },
   settings: {
     voiceVolume: 0.5,
     voiceEveryN: 1,
@@ -442,9 +442,9 @@ function resetTrackingState() {
   STATE.ballState.length = 0;
   STATE.lastLocalMinY = null;
   STATE.lastLocalMinYCam = null;
-  STATE.kalman.x = null;
   STATE.kalman.y = null;
   STATE.kalman.lastT = null;
+  STATE.kalman.lastX = null;
   detectColorCycleIndex = 0;
   hideTrackingVisuals();
 }
@@ -1150,9 +1150,9 @@ function fileStepBack() {
   trimBallStateBeforeFileFrame(targetFrame);
   recalculateJuggleCountFromBallState();
   recomputeLastLocalMinYFromBallState();
-  STATE.kalman.x = null;
   STATE.kalman.y = null;
   STATE.kalman.lastT = null;
+  STATE.kalman.lastX = null;
   liveSnakeVisualisation();
   STATE.filePlaybackActive = true;
   seekAndDetectFileFrame(fileVideoFrameToTime(targetFrame));
@@ -1808,15 +1808,8 @@ function displayVideoDetections(result) {
     const centerYDisplay = centerY * sy;
     const dDisplay = b.height * Math.min(sx, sy);
 
-    if (!STATE.kalman.x) {
-      STATE.kalman.x = new Kalman1D(KALMAN_PROCESS_VARIANCE, KALMAN_MEASUREMENT_VARIANCE);
+    if (!STATE.kalman.y) {
       STATE.kalman.y = new Kalman1D(KALMAN_PROCESS_VARIANCE, KALMAN_MEASUREMENT_VARIANCE);
-    }
-    if (!STATE.kalman.x.initialised) {
-      STATE.kalman.x.x[0] = centerXDisplay;
-      STATE.kalman.x.x[1] = 0;
-      STATE.kalman.x.x[2] = 0;
-      STATE.kalman.x.initialised = true;
     }
     if (!STATE.kalman.y.initialised) {
       STATE.kalman.y.x[0] = centerYDisplay;
@@ -1824,17 +1817,15 @@ function displayVideoDetections(result) {
       STATE.kalman.y.x[2] = 0;
       STATE.kalman.y.initialised = true;
     }
-    STATE.kalman.x.update(centerXDisplay);
     STATE.kalman.y.update(centerYDisplay);
-    const smoothedX = STATE.kalman.x.x[0];
+    const trackX = centerXDisplay;
     const smoothedY = STATE.kalman.y.x[0];
-    const vx = STATE.kalman.x.x[1];
     const vy = STATE.kalman.y.x[1];
-    STATE.kalman.x.predict(dtSec);
     STATE.kalman.y.predict(dtSec);
+    STATE.kalman.lastX = trackX;
 
     const kalmanYCam = sy > 0 ? smoothedY / sy : centerY;
-    const entry = pushBallState(smoothedX, smoothedY, dDisplay, false, t, vx, vy, {
+    const entry = pushBallState(trackX, smoothedY, dDisplay, false, t, 0, vy, {
       mpX: b.originX,
       mpY: b.originY,
       mpW: b.width,
@@ -1871,7 +1862,7 @@ function displayVideoDetections(result) {
       }
       if (kalmanEl && kalmanLabelEl) {
         if (isTrajectoryExtended()) {
-          let kx = smoothedX - boxLeft;
+          let kx = trackX - boxLeft;
           if (isVideoDisplayMirrored()) {
             kx = boxW - kx;
           }
@@ -1888,14 +1879,16 @@ function displayVideoDetections(result) {
       ballHighlighter.style.display = 'none';
     }
   } else {
-    if (STATE.kalman.x && STATE.kalman.y && STATE.kalman.x.initialised) {
-      const predX = STATE.kalman.x.predict(dtSec);
+    if (STATE.kalman.y && STATE.kalman.y.initialised) {
+      const holdX = STATE.kalman.lastX != null
+        ? STATE.kalman.lastX
+        : (STATE.ballState.length > 0 ? STATE.ballState[STATE.ballState.length - 1].x : 0);
       const predY = STATE.kalman.y.predict(dtSec);
       const d = STATE.ballState.length > 0 ? STATE.ballState[STATE.ballState.length - 1].d : 40;
       const prev = STATE.ballState.length > 0 ? STATE.ballState[STATE.ballState.length - 1] : null;
       const sy = prev && prev.sy > 0 ? prev.sy : ((video.offsetHeight || 1) / (video.videoHeight || 1));
       const kalmanYCam = sy > 0 ? predY / sy : null;
-      pushBallState(predX, predY, d, true, t, undefined, undefined, {
+      pushBallState(holdX, predY, d, true, t, undefined, undefined, {
         kalmanYCam,
         sx: prev?.sx ?? null,
         sy,
@@ -1904,7 +1897,7 @@ function displayVideoDetections(result) {
 
       if (isShowBall() && isTrajectoryExtended() && kalmanEl && kalmanLabelEl) {
         const dw = video.offsetWidth;
-        const drawX = isVideoDisplayMirrored() ? dw - predX : predX;
+        const drawX = isVideoDisplayMirrored() ? dw - holdX : holdX;
         ballHighlighter.style.left = drawX + 'px';
         ballHighlighter.style.top = predY + 'px';
         ballHighlighter.style.width = '0px';
