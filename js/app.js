@@ -44,8 +44,10 @@ const handsFreeCheckbox = document.getElementById('handsFreeCheckbox');
 const autoPauseCheckbox = document.getElementById('autoPauseCheckbox');
 const minBounceSlider = document.getElementById('minBounceSlider');
 const minBounceValueEl = document.getElementById('minBounceValue');
-const showSnakeCheckbox = document.getElementById('showSnakeCheckbox');
 const showBallCheckbox = document.getElementById('showBallCheckbox');
+const trajectoryModeInputs = document.querySelectorAll('input[name="trajectoryMode"]');
+const trajDebugTableEl = document.getElementById('trajDebugTable');
+const trajDebugBodyEl = document.getElementById('trajDebugBody');
 const showTimingCheckbox = document.getElementById('showTimingCheckbox');
 const fileDebugCheckbox = document.getElementById('fileDebugCheckbox');
 const fileDebugSettingRow = document.getElementById('fileDebugSettingRow');
@@ -78,6 +80,11 @@ const SNAKE_DOT_SIZE = 5;
 const SNAKE_DOT_SIZE_JUGGLE = 10;
 /** Keep the newest snake dots fully on-screen (right edge inset). */
 const SNAKE_RIGHT_INSET_PX = SNAKE_DOT_SIZE_JUGGLE;
+const SNAKE_COLOR_DETECT = '#2563eb';
+const SNAKE_COLOR_CALC = '#f80320';
+const SNAKE_COLOR_JUGGLE = '#2feb25';
+const SNAKE_COLOR_MIN_Y = '#f5c542';
+const SNAKE_DETECT_CYCLE = ['#7EB6E8', '#5ECFC0', '#B8A0F0', '#F0B27A', '#E0A0C8'];
 const SNAKE_MIN_RANGE_BALL_FRACTION = 0.5;
 const VOICE_EVERY_N_OPTIONS = [1, 5, 10, 25, 50];
 const POSE_HOLD_MS = 1000;
@@ -109,6 +116,7 @@ const STATE = {
   },
   ballState: [],
   lastLocalMinY: null,
+  lastLocalMinYCam: null,
   kalman: { x: null, y: null, lastT: null },
   settings: {
     voiceVolume: 0.5,
@@ -116,7 +124,7 @@ const STATE = {
     handsFree: true,
     autoPause: true,
     minBounce: 0.2,
-    showSnake: true,
+    trajectoryMode: 'simple',
     showBall: true,
     showTiming: true,
     fileDebug: true,
@@ -140,6 +148,8 @@ let rafId = null;
 let ballHighlighter = null;
 let snakeFrame = null;
 let snakeDots = [];
+let trajDebugRows = [];
+let detectColorCycleIndex = 0;
 
 function isTestHarnessPage() {
   return document.getElementById('testPanel') != null;
@@ -431,9 +441,11 @@ function getSessionElapsedMs() {
 function resetTrackingState() {
   STATE.ballState.length = 0;
   STATE.lastLocalMinY = null;
+  STATE.lastLocalMinYCam = null;
   STATE.kalman.x = null;
   STATE.kalman.y = null;
   STATE.kalman.lastT = null;
+  detectColorCycleIndex = 0;
   hideTrackingVisuals();
 }
 
@@ -445,12 +457,53 @@ function resetSessionTimer() {
 
 function isShowSnake() {
   if (!isIndexPage()) return true;
-  return STATE.settings.showSnake;
+  return STATE.settings.trajectoryMode !== 'off';
+}
+
+function isTrajectoryExtended() {
+  return isIndexPage() && STATE.settings.trajectoryMode === 'extended';
 }
 
 function isShowBall() {
   if (!isIndexPage()) return true;
   return STATE.settings.showBall;
+}
+
+function getTrajectoryPointColor(pt) {
+  if (pt.juggleCount != null) return SNAKE_COLOR_JUGGLE;
+  if (pt.isMinY) return SNAKE_COLOR_MIN_Y;
+  if (pt.calculatedOnly) return SNAKE_COLOR_CALC;
+  if (isTrajectoryExtended()) {
+    return SNAKE_DETECT_CYCLE[(pt.colorIndex || 0) % SNAKE_DETECT_CYCLE.length];
+  }
+  return SNAKE_COLOR_DETECT;
+}
+
+function markLocalMinPoint(point) {
+  for (const pt of STATE.ballState) pt.isMinY = false;
+  if (point) {
+    point.isMinY = true;
+    STATE.lastLocalMinY = point.y;
+    STATE.lastLocalMinYCam = point.kalmanYCam != null ? point.kalmanYCam : null;
+  }
+}
+
+function refreshDebugRatios() {
+  const minY = STATE.lastLocalMinY;
+  for (const pt of STATE.ballState) {
+    if (minY == null || !(pt.d > 0)) {
+      pt.debugRatio = null;
+      continue;
+    }
+    pt.debugRatio = Math.round(((pt.y - minY) / pt.d) * 10) / 10;
+  }
+}
+
+function syncTrajectoryModeClass() {
+  document.body.classList.toggle('trajectory-extended', isTrajectoryExtended());
+  if (trajDebugTableEl) {
+    trajDebugTableEl.setAttribute('aria-hidden', isTrajectoryExtended() ? 'false' : 'true');
+  }
 }
 
 function isShowTiming() {
@@ -462,13 +515,21 @@ function applyVisualizationSettings() {
   if (timingStatsEl) {
     timingStatsEl.classList.toggle('timing-stats--hidden', !isShowTiming());
   }
+  syncTrajectoryModeClass();
   if (!isShowBall() && ballHighlighter) ballHighlighter.style.display = 'none';
   if (!isShowSnake() && snakeFrame) snakeFrame.style.display = 'none';
+  if (!isTrajectoryExtended() && trajDebugBodyEl) {
+    for (const row of trajDebugRows) row.style.display = 'none';
+  }
+  liveSnakeVisualisation();
 }
 
 function hideTrackingVisuals() {
   if (ballHighlighter) ballHighlighter.style.display = 'none';
   if (snakeFrame) snakeFrame.style.display = 'none';
+  if (trajDebugBodyEl) {
+    for (const row of trajDebugRows) row.style.display = 'none';
+  }
 }
 
 function showAutoPauseHint() {
@@ -617,15 +678,23 @@ function recalculateJuggleCountFromBallState() {
 function recomputeLastLocalMinYFromBallState() {
   const detected = STATE.ballState.filter((e) => !e.calculatedOnly);
   STATE.lastLocalMinY = null;
-  if (detected.length < 3) return;
+  STATE.lastLocalMinYCam = null;
+  for (const pt of STATE.ballState) pt.isMinY = false;
+  if (detected.length < 3) {
+    refreshDebugRatios();
+    return;
+  }
+  let lastMin = null;
   for (let i = 2; i < detected.length; i++) {
     const prevPrev = detected[i - 2];
     const prev = detected[i - 1];
     const curr = detected[i];
     if (prev.y <= prevPrev.y && prev.y <= curr.y) {
-      STATE.lastLocalMinY = prev.y;
+      lastMin = prev;
     }
   }
+  if (lastMin) markLocalMinPoint(lastMin);
+  refreshDebugRatios();
 }
 
 function trimBallStateBeforeFileFrame(targetFrame) {
@@ -832,7 +901,11 @@ function openSettings() {
     minBounceSlider.value = String(STATE.settings.minBounce);
     if (minBounceValueEl) minBounceValueEl.textContent = String(STATE.settings.minBounce);
   }
-  if (showSnakeCheckbox) showSnakeCheckbox.checked = STATE.settings.showSnake;
+  if (trajectoryModeInputs && trajectoryModeInputs.length) {
+    for (const input of trajectoryModeInputs) {
+      input.checked = input.value === STATE.settings.trajectoryMode;
+    }
+  }
   if (showBallCheckbox) showBallCheckbox.checked = STATE.settings.showBall;
   if (showTimingCheckbox) showTimingCheckbox.checked = STATE.settings.showTiming;
   if (fileDebugCheckbox) fileDebugCheckbox.checked = STATE.settings.fileDebug;
@@ -954,7 +1027,14 @@ function syncSettingsFromUI() {
       if (minBounceValueEl) minBounceValueEl.textContent = String(STATE.settings.minBounce);
     }
   }
-  if (showSnakeCheckbox) STATE.settings.showSnake = showSnakeCheckbox.checked;
+  if (trajectoryModeInputs && trajectoryModeInputs.length) {
+    for (const input of trajectoryModeInputs) {
+      if (input.checked) {
+        STATE.settings.trajectoryMode = input.value;
+        break;
+      }
+    }
+  }
   if (showBallCheckbox) STATE.settings.showBall = showBallCheckbox.checked;
   if (showTimingCheckbox) STATE.settings.showTiming = showTimingCheckbox.checked;
   if (fileDebugCheckbox) STATE.settings.fileDebug = fileDebugCheckbox.checked;
@@ -1232,7 +1312,9 @@ function initSessionUI() {
   handsFreeCheckbox?.addEventListener('change', syncSettingsFromUI);
   autoPauseCheckbox?.addEventListener('change', syncSettingsFromUI);
   minBounceSlider?.addEventListener('input', syncSettingsFromUI);
-  showSnakeCheckbox?.addEventListener('change', syncSettingsFromUI);
+  trajectoryModeInputs?.forEach((input) => {
+    input.addEventListener('change', syncSettingsFromUI);
+  });
   showBallCheckbox?.addEventListener('change', syncSettingsFromUI);
   showTimingCheckbox?.addEventListener('change', syncSettingsFromUI);
   fileDebugCheckbox?.addEventListener('change', syncSettingsFromUI);
@@ -1368,6 +1450,7 @@ function registerServiceWorker() {
 initSessionUI();
 registerServiceWorker();
 syncHelpAppVersion();
+syncTrajectoryModeClass();
 
 if (isIndexPage()) {
   trackEvent('app_open');
@@ -1554,7 +1637,7 @@ async function predictWebcam() {
   rafId = window.requestAnimationFrame(predictWebcam);
 }
 
-function pushBallState(x, y, d, calculatedOnly, t, vx, vy, juggleCount = null, topText = null, bottomText = null) {
+function pushBallState(x, y, d, calculatedOnly, t, vx, vy, debug = {}) {
   let vxOut = vx != null ? vx : 0;
   let vyOut = vy != null ? vy : 0;
   if (STATE.ballState.length > 0 && vxOut === 0 && vyOut === 0) {
@@ -1565,17 +1648,34 @@ function pushBallState(x, y, d, calculatedOnly, t, vx, vy, juggleCount = null, t
       vyOut = (y - prev.y) / dtSec;
     }
   }
+  let colorIndex = 0;
+  if (!calculatedOnly) {
+    colorIndex = detectColorCycleIndex % SNAKE_DETECT_CYCLE.length;
+    detectColorCycleIndex += 1;
+  }
   const entry = {
     x, y, vx: vxOut, vy: vyOut, d, calculatedOnly, t,
-    juggleCount: juggleCount ?? null,
-    topText: topText ?? null,
-    bottomText: bottomText ?? null,
+    juggleCount: null,
+    topText: null,
+    bottomText: null,
+    isMinY: false,
+    debugRatio: null,
+    colorIndex,
+    mpY: debug.mpY ?? null,
+    mpH: debug.mpH ?? null,
+    mpCenterY: debug.mpCenterY ?? null,
+    kalmanYCam: debug.kalmanYCam ?? null,
+    mpX: debug.mpX ?? null,
+    mpW: debug.mpW ?? null,
+    sx: debug.sx ?? null,
+    sy: debug.sy ?? null,
   };
   if (isIndexPage() && STATE.videoSource === 'file') {
     entry.fileVideoFrame = getCurrentFileVideoFrame();
   }
   STATE.ballState.push(entry);
   if (STATE.ballState.length > STATE_BUFFER_CAPACITY) STATE.ballState.shift();
+  return entry;
 }
 
 function isNewJuggleDetected() {
@@ -1586,7 +1686,7 @@ function isNewJuggleDetected() {
   const curr = detected[n - 1];
   const prevPrev = detected[n - 3];
   if (prev.y <= prevPrev.y && prev.y <= curr.y) {
-    STATE.lastLocalMinY = prev.y;
+    markLocalMinPoint(prev);
   }
   if (prev.y >= prevPrev.y && prev.y >= curr.y) {
     const dropFromTop = prev.y - (STATE.lastLocalMinY != null ? STATE.lastLocalMinY : prev.y);
@@ -1625,15 +1725,73 @@ function ensureBallHighlighter(container) {
     ballHighlighter.setAttribute('class', 'highlighter');
     const meta = document.createElement('div');
     meta.setAttribute('class', 'highlighter-meta');
+    const kalman = document.createElement('div');
+    kalman.setAttribute('class', 'highlighter-kalman');
+    const kalmanLabel = document.createElement('div');
+    kalmanLabel.setAttribute('class', 'highlighter-kalman-label');
+    kalman.appendChild(kalmanLabel);
     ballHighlighter.appendChild(meta);
+    ballHighlighter.appendChild(kalman);
     container.appendChild(ballHighlighter);
   }
-  return ballHighlighter.querySelector('.highlighter-meta');
+  return {
+    metaEl: ballHighlighter.querySelector('.highlighter-meta'),
+    kalmanEl: ballHighlighter.querySelector('.highlighter-kalman'),
+    kalmanLabelEl: ballHighlighter.querySelector('.highlighter-kalman-label'),
+  };
+}
+
+function formatTrajDebugText(pt) {
+  const mp = pt.mpY != null && pt.mpH != null
+    ? Math.round(pt.mpY) + ' ' + Math.round(pt.mpH)
+    : '—';
+  const mpC = pt.mpCenterY != null ? String(Math.round(pt.mpCenterY)) : '—';
+  const kC = pt.kalmanYCam != null ? String(Math.round(pt.kalmanYCam)) : '—';
+  const minY = STATE.lastLocalMinYCam != null ? String(Math.round(STATE.lastLocalMinYCam)) : '—';
+  const r = pt.debugRatio != null ? String(pt.debugRatio) : '—';
+  return mp + '/' + mpC + '/' + kC + '/' + minY + '/' + r;
+}
+
+function updateTrajDebugTable() {
+  if (!trajDebugBodyEl) return;
+  if (!isTrajectoryExtended()) {
+    for (const row of trajDebugRows) row.style.display = 'none';
+    return;
+  }
+  const n = STATE.ballState.length;
+  while (trajDebugRows.length < n) {
+    const row = document.createElement('div');
+    row.className = 'traj-debug-row';
+    const dot = document.createElement('span');
+    dot.className = 'traj-debug-dot';
+    const text = document.createElement('span');
+    text.className = 'traj-debug-text';
+    row.appendChild(dot);
+    row.appendChild(text);
+    trajDebugBodyEl.appendChild(row);
+    trajDebugRows.push(row);
+  }
+  for (let rowIdx = 0; rowIdx < trajDebugRows.length; rowIdx++) {
+    const row = trajDebugRows[rowIdx];
+    if (rowIdx >= n) {
+      row.style.display = 'none';
+      continue;
+    }
+    const pt = STATE.ballState[n - 1 - rowIdx];
+    const dot = row.querySelector('.traj-debug-dot');
+    const text = row.querySelector('.traj-debug-text');
+    const color = getTrajectoryPointColor(pt);
+    const isJuggle = pt.juggleCount != null;
+    dot.style.backgroundColor = color;
+    dot.classList.toggle('is-juggle', isJuggle);
+    text.textContent = formatTrajDebugText(pt);
+    row.style.display = 'flex';
+  }
 }
 
 function displayVideoDetections(result) {
   const container = videoStage || liveView;
-  const metaEl = ensureBallHighlighter(container);
+  const { metaEl, kalmanEl, kalmanLabelEl } = ensureBallHighlighter(container);
   const t = Date.now();
   const dtSec = STATE.kalman.lastT != null ? (t - STATE.kalman.lastT) / 1000 : 0;
   STATE.kalman.lastT = t;
@@ -1679,9 +1837,20 @@ function displayVideoDetections(result) {
     STATE.kalman.x.predict(dtSec);
     STATE.kalman.y.predict(dtSec);
 
-    pushBallState(smoothedX, smoothedY, dDisplay, false, t, vx, vy, null, null, null);
+    const kalmanYCam = sy > 0 ? smoothedY / sy : centerY;
+    const entry = pushBallState(smoothedX, smoothedY, dDisplay, false, t, vx, vy, {
+      mpX: b.originX,
+      mpY: b.originY,
+      mpW: b.width,
+      mpH: b.height,
+      mpCenterY: centerY,
+      kalmanYCam,
+      sx,
+      sy,
+    });
     const juggleResult = isNewJuggleDetected();
     if (juggleResult.ratio != null) setJuggleInBallState(juggleResult);
+    refreshDebugRatios();
 
     if (isShowBall()) {
       const boxW = b.width * sx;
@@ -1690,10 +1859,12 @@ function displayVideoDetections(result) {
         ? dw - (b.originX + b.width) * sx
         : b.originX * sx;
       const boxTop = b.originY * sy;
+      const pointColor = getTrajectoryPointColor(entry);
       ballHighlighter.style.left = boxLeft + 'px';
       ballHighlighter.style.top = boxTop + 'px';
       ballHighlighter.style.width = boxW + 'px';
       ballHighlighter.style.height = boxH + 'px';
+      ballHighlighter.style.borderColor = isTrajectoryExtended() ? pointColor : '#cd32b8';
       ballHighlighter.style.display = 'block';
       if (metaEl) {
         metaEl.textContent =
@@ -1701,6 +1872,21 @@ function displayVideoDetections(result) {
           ' y:' + Math.round(b.originY) +
           ' w:' + Math.round(b.width) +
           ' h:' + Math.round(b.height);
+      }
+      if (kalmanEl && kalmanLabelEl) {
+        if (isTrajectoryExtended()) {
+          let kx = smoothedX - boxLeft;
+          if (isVideoDisplayMirrored()) {
+            kx = boxW - kx;
+          }
+          const ky = smoothedY - boxTop;
+          kalmanEl.style.left = kx + 'px';
+          kalmanEl.style.top = ky + 'px';
+          kalmanEl.style.display = 'block';
+          kalmanLabelEl.textContent = String(Math.round(kalmanYCam));
+        } else {
+          kalmanEl.style.display = 'none';
+        }
       }
     } else {
       ballHighlighter.style.display = 'none';
@@ -1711,20 +1897,30 @@ function displayVideoDetections(result) {
       const predX = STATE.kalman.x.predict(dtSec);
       const predY = STATE.kalman.y.predict(dtSec);
       const d = STATE.ballState.length > 0 ? STATE.ballState[STATE.ballState.length - 1].d : 40;
-      pushBallState(predX, predY, d, true, t, undefined, undefined, null, null, null);
+      const prev = STATE.ballState.length > 0 ? STATE.ballState[STATE.ballState.length - 1] : null;
+      const sy = prev && prev.sy > 0 ? prev.sy : ((video.offsetHeight || 1) / (video.videoHeight || 1));
+      pushBallState(predX, predY, d, true, t, undefined, undefined, {
+        kalmanYCam: sy > 0 ? predY / sy : null,
+        sx: prev?.sx ?? null,
+        sy,
+      });
+      refreshDebugRatios();
     }
   }
   liveSnakeVisualisation();
 }
 
 function liveSnakeVisualisation() {
+  syncTrajectoryModeClass();
   if (!isShowSnake()) {
     if (snakeFrame) snakeFrame.style.display = 'none';
+    updateTrajDebugTable();
     return;
   }
   const n = STATE.ballState.length;
   if (n === 0) {
     if (snakeFrame) snakeFrame.style.display = 'none';
+    updateTrajDebugTable();
     return;
   }
 
@@ -1776,17 +1972,10 @@ function liveSnakeVisualisation() {
     el.style.top = (y - half) + 'px';
     el.style.width = dotSize + 'px';
     el.style.height = dotSize + 'px';
+    el.style.backgroundColor = getTrajectoryPointColor(pt);
     el.style.display = 'block';
-    if (pt.juggleCount != null) {
-      el.classList.add('snake-dot-juggle');
-    } else {
-      el.classList.remove('snake-dot-juggle');
-    }
-    if (pt.calculatedOnly) {
-      el.classList.add('snake-dot-calculated');
-    } else {
-      el.classList.remove('snake-dot-calculated');
-    }
+    el.classList.toggle('snake-dot-juggle', pt.juggleCount != null);
+    el.classList.toggle('snake-dot-calculated', !!pt.calculatedOnly && pt.juggleCount == null);
     const hasLabels = pt.topText != null || pt.bottomText != null;
     let labelTop = el.querySelector('.snake-dot-label-top');
     let labelBottom = el.querySelector('.snake-dot-label-bottom');
@@ -1813,6 +2002,7 @@ function liveSnakeVisualisation() {
   for (let i = n; i < snakeDots.length; i++) {
     snakeDots[i].style.display = 'none';
   }
+  updateTrajDebugTable();
 }
 
 function resetJuggleState() {

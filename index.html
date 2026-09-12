@@ -69,9 +69,109 @@
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
       color: #fff;
-      background: rgba(70, 70, 70, 0.88);
+      background: rgba(70, 70, 70, 0.55);
       border-radius: 2px 2px 0 0;
       pointer-events: none;
+    }
+    .highlighter-kalman {
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      margin: -3px 0 0 -3px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);
+      pointer-events: none;
+      display: none;
+    }
+    .highlighter-kalman-label {
+      position: absolute;
+      left: 50%;
+      bottom: 100%;
+      transform: translateX(-50%);
+      margin-bottom: 2px;
+      padding: 1px 4px;
+      font-size: 10px;
+      line-height: 1.2;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      color: #fff;
+      background: rgba(70, 70, 70, 0.55);
+      border-radius: 2px;
+      pointer-events: none;
+    }
+    .traj-debug-table {
+      display: none;
+      position: absolute;
+      top: max(8px, env(safe-area-inset-top));
+      right: 6px;
+      z-index: 4;
+      max-width: min(52vw, 280px);
+      max-height: 42vh;
+      overflow: hidden;
+      pointer-events: none;
+      font-size: 10px;
+      line-height: 1.25;
+      font-variant-numeric: tabular-nums;
+      color: #fff;
+    }
+    body.trajectory-extended .traj-debug-table {
+      display: block;
+    }
+    .traj-debug-head,
+    .traj-debug-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 1px 4px;
+      background: rgba(70, 70, 70, 0.55);
+      white-space: nowrap;
+    }
+    .traj-debug-head {
+      font-weight: 600;
+      margin-bottom: 2px;
+      border-radius: 2px;
+    }
+    .traj-debug-row {
+      border-radius: 2px;
+      margin-bottom: 1px;
+    }
+    .traj-debug-dot {
+      flex: 0 0 auto;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+    }
+    .traj-debug-dot.is-juggle {
+      width: 10px;
+      height: 10px;
+    }
+    .traj-debug-text {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .settings-row--trajectory {
+      flex-wrap: wrap;
+      cursor: default;
+      align-items: flex-start;
+    }
+    .settings-trajectory-label {
+      flex: 0 0 100%;
+      margin-bottom: 6px;
+    }
+    .settings-trajectory-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      width: 100%;
+    }
+    .settings-trajectory-options label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      font-size: 0.95rem;
     }
     .session-bar {
       --session-count-size: 2rem;
@@ -759,10 +859,10 @@
       font-size: 10px;
       line-height: 1.2;
       white-space: nowrap;
-      background: #ffffffb3;
+      background: rgba(70, 70, 70, 0.55);
+      color: #fff;
       padding: 2px 4px;
       border-radius: 2px;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.2);
       pointer-events: none;
     }
     .snake-dot-label-top {
@@ -848,10 +948,14 @@
         <span class="settings-slider-label">Min bounce <span id="minBounceValue">0.2</span></span>
         <input type="range" id="minBounceSlider" min="0.1" max="0.5" step="0.1" value="0.2" aria-label="Min bounce" />
       </div>
-      <label class="settings-row">
-        <input type="checkbox" id="showSnakeCheckbox" checked />
-        Trajectory plot
-      </label>
+      <div class="settings-row settings-row--trajectory" id="trajectoryModeRow">
+        <span class="settings-trajectory-label">Trajectory plot</span>
+        <div class="settings-trajectory-options" role="radiogroup" aria-label="Trajectory plot mode">
+          <label><input type="radio" name="trajectoryMode" value="off" /> OFF</label>
+          <label><input type="radio" name="trajectoryMode" value="simple" checked /> Simple</label>
+          <label><input type="radio" name="trajectoryMode" value="extended" /> Extended</label>
+        </div>
+      </div>
       <label class="settings-row">
         <input type="checkbox" id="showBallCheckbox" checked />
         Ball overlay
@@ -948,7 +1052,7 @@
         <li><strong>Hands-free</strong> — enable pose controls.</li>
         <li><strong>Autopause</strong> — pause after ~5s without juggles.</li>
         <li><strong>Min bounce</strong> — how big a bounce must be to count (lower = more sensitive).</li>
-        <li><strong>Trajectory / Ball / Stats</strong> — overlays for feedback and debugging.</li>
+        <li><strong>Trajectory OFF / Simple / Extended</strong> — plot modes; Extended adds color-cycled debug table.</li>
         <li><strong>From file + Debug step</strong> — test with a video; scrub and step frame by frame.</li>
       </ul>
 
@@ -981,6 +1085,10 @@
     <div id="liveView" class="videoView live-fullscreen">
       <div id="videoStage" class="video-stage">
         <video id="webcam" autoplay playsinline></video>
+        <div id="trajDebugTable" class="traj-debug-table" aria-hidden="true">
+          <div class="traj-debug-head">dot/mp/mp_c/k_c/min_Y/r</div>
+          <div id="trajDebugBody" class="traj-debug-body"></div>
+        </div>
         <div id="timingStats" class="timing-stats" aria-live="polite">
           <span id="aiMs">AI: — ms</span>
           <span id="postAiMs">PostAI: — ms</span>
