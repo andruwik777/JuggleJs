@@ -480,12 +480,10 @@ function getTrajectoryPointColor(pt) {
 }
 
 function markLocalMinPoint(point) {
-  for (const pt of STATE.ballState) pt.isMinY = false;
-  if (point) {
-    point.isMinY = true;
-    STATE.lastLocalMinY = point.y;
-    STATE.lastLocalMinYCam = point.kalmanYCam != null ? point.kalmanYCam : null;
-  }
+  if (!point) return;
+  point.isMinY = true;
+  STATE.lastLocalMinY = point.y;
+  STATE.lastLocalMinYCam = point.kalmanYCam != null ? point.kalmanYCam : null;
 }
 
 function refreshDebugRatios() {
@@ -684,16 +682,14 @@ function recomputeLastLocalMinYFromBallState() {
     refreshDebugRatios();
     return;
   }
-  let lastMin = null;
   for (let i = 2; i < detected.length; i++) {
     const prevPrev = detected[i - 2];
     const prev = detected[i - 1];
     const curr = detected[i];
     if (prev.y <= prevPrev.y && prev.y <= curr.y) {
-      lastMin = prev;
+      markLocalMinPoint(prev);
     }
   }
-  if (lastMin) markLocalMinPoint(lastMin);
   refreshDebugRatios();
 }
 
