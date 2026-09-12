@@ -1862,10 +1862,11 @@ function displayVideoDetections(result) {
       }
       if (kalmanEl && kalmanLabelEl) {
         if (isTrajectoryExtended()) {
-          let kx = trackX - boxLeft;
-          if (isVideoDisplayMirrored()) {
-            kx = boxW - kx;
-          }
+          // trackX is in unmirrored frame→stage space; boxLeft is already flipped for Live mirror.
+          const xFromUnmirroredBoxLeft = trackX - b.originX * sx;
+          const kx = isVideoDisplayMirrored()
+            ? boxW - xFromUnmirroredBoxLeft
+            : xFromUnmirroredBoxLeft;
           const ky = smoothedY - boxTop;
           kalmanEl.style.left = kx + 'px';
           kalmanEl.style.top = ky + 'px';
