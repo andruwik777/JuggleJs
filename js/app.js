@@ -45,6 +45,7 @@ const autoPauseCheckbox = document.getElementById('autoPauseCheckbox');
 const minBounceSlider = document.getElementById('minBounceSlider');
 const minBounceValueEl = document.getElementById('minBounceValue');
 const showBallCheckbox = document.getElementById('showBallCheckbox');
+const mirrorVideoCheckbox = document.getElementById('mirrorVideoCheckbox');
 const trajectoryModeInputs = document.querySelectorAll('input[name="trajectoryMode"]');
 const trajDebugTableEl = document.getElementById('trajDebugTable');
 const trajDebugBodyEl = document.getElementById('trajDebugBody');
@@ -125,6 +126,7 @@ const STATE = {
     autoPause: true,
     minBounce: 0.2,
     trajectoryMode: 'simple',
+    mirrorVideo: false,
     showBall: true,
     showTiming: true,
     fileDebug: true,
@@ -215,7 +217,11 @@ function isCameraSource() {
 }
 
 function isVideoDisplayMirrored() {
-  return isCameraSource();
+  return !!STATE.settings.mirrorVideo;
+}
+
+function applyMirrorVideoClass() {
+  document.body.classList.toggle('video-mirrored', isVideoDisplayMirrored());
 }
 
 function shouldRunDetection() {
@@ -510,6 +516,7 @@ function isShowTiming() {
 }
 
 function applyVisualizationSettings() {
+  applyMirrorVideoClass();
   if (timingStatsEl) {
     timingStatsEl.classList.toggle('timing-stats--hidden', !isShowTiming());
   }
@@ -714,6 +721,7 @@ function scrubFileToTime(targetTime) {
 
 function updateVideoSourceUI() {
   if (!isIndexPage()) return;
+  applyMirrorVideoClass();
   document.body.classList.toggle('video-source-file', STATE.videoSource === 'file');
   document.body.classList.toggle('video-source-camera', STATE.videoSource === 'camera');
   if (liveSourceBtn) liveSourceBtn.disabled = STATE.videoSource === 'camera';
@@ -902,6 +910,7 @@ function openSettings() {
       input.checked = input.value === STATE.settings.trajectoryMode;
     }
   }
+  if (mirrorVideoCheckbox) mirrorVideoCheckbox.checked = STATE.settings.mirrorVideo;
   if (showBallCheckbox) showBallCheckbox.checked = STATE.settings.showBall;
   if (showTimingCheckbox) showTimingCheckbox.checked = STATE.settings.showTiming;
   if (fileDebugCheckbox) fileDebugCheckbox.checked = STATE.settings.fileDebug;
@@ -1031,12 +1040,17 @@ function syncSettingsFromUI() {
       }
     }
   }
+  const prevMirror = STATE.settings.mirrorVideo;
+  if (mirrorVideoCheckbox) STATE.settings.mirrorVideo = mirrorVideoCheckbox.checked;
   if (showBallCheckbox) STATE.settings.showBall = showBallCheckbox.checked;
   if (showTimingCheckbox) STATE.settings.showTiming = showTimingCheckbox.checked;
   if (fileDebugCheckbox) STATE.settings.fileDebug = fileDebugCheckbox.checked;
   if (!STATE.settings.handsFree) resetPoseHoldState();
   applyVisualizationSettings();
   updateVideoSourceUI();
+  if (prevMirror !== STATE.settings.mirrorVideo && STATE.videoSource === 'file' && objectDetector) {
+    seekAndDetectFileFrame(video.currentTime || 0);
+  }
 
   const voiceEvent = voiceVolumeEvent(STATE.settings.voiceVolume);
   if (voiceEvent !== lastTrackedVoiceEvent) {
@@ -1311,6 +1325,7 @@ function initSessionUI() {
   trajectoryModeInputs?.forEach((input) => {
     input.addEventListener('change', syncSettingsFromUI);
   });
+  mirrorVideoCheckbox?.addEventListener('change', syncSettingsFromUI);
   showBallCheckbox?.addEventListener('change', syncSettingsFromUI);
   showTimingCheckbox?.addEventListener('change', syncSettingsFromUI);
   fileDebugCheckbox?.addEventListener('change', syncSettingsFromUI);

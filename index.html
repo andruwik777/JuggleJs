@@ -21,7 +21,7 @@
       height: 100%;
       object-fit: contain;
     }
-    body.video-source-camera video {
+    body.video-mirrored video {
       transform: rotateY(180deg);
       -webkit-transform: rotateY(180deg);
       -moz-transform: rotateY(180deg);
@@ -957,6 +957,10 @@
         </div>
       </div>
       <label class="settings-row">
+        <input type="checkbox" id="mirrorVideoCheckbox" />
+        Mirror video
+      </label>
+      <label class="settings-row">
         <input type="checkbox" id="showBallCheckbox" checked />
         Ball overlay
       </label>
@@ -1053,6 +1057,7 @@
         <li><strong>Autopause</strong> — pause after ~5s without juggles.</li>
         <li><strong>Min bounce</strong> — how big a bounce must be to count (lower = more sensitive).</li>
         <li><strong>Trajectory OFF / Simple / Extended</strong> — plot modes; Extended adds color-cycled debug table.</li>
+        <li><strong>Mirror video</strong> — flip the picture left↔right (Live and File). Off by default; counting is unchanged.</li>
         <li><strong>From file + Debug step</strong> — test with a video; scrub and step frame by frame.</li>
       </ul>
 
