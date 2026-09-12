@@ -1781,9 +1781,9 @@ function updateTrajDebugTable() {
     const dot = row.querySelector('.traj-debug-dot');
     const text = row.querySelector('.traj-debug-text');
     const color = getTrajectoryPointColor(pt);
-    const isJuggle = pt.juggleCount != null;
+    const isLarge = pt.juggleCount != null || pt.isMinY;
     dot.style.backgroundColor = color;
-    dot.classList.toggle('is-juggle', isJuggle);
+    dot.classList.toggle('is-juggle', isLarge);
     text.textContent = formatTrajDebugText(pt);
     row.style.display = 'flex';
   }
@@ -1892,19 +1892,39 @@ function displayVideoDetections(result) {
       ballHighlighter.style.display = 'none';
     }
   } else {
-    ballHighlighter.style.display = 'none';
     if (STATE.kalman.x && STATE.kalman.y && STATE.kalman.x.initialised) {
       const predX = STATE.kalman.x.predict(dtSec);
       const predY = STATE.kalman.y.predict(dtSec);
       const d = STATE.ballState.length > 0 ? STATE.ballState[STATE.ballState.length - 1].d : 40;
       const prev = STATE.ballState.length > 0 ? STATE.ballState[STATE.ballState.length - 1] : null;
       const sy = prev && prev.sy > 0 ? prev.sy : ((video.offsetHeight || 1) / (video.videoHeight || 1));
+      const kalmanYCam = sy > 0 ? predY / sy : null;
       pushBallState(predX, predY, d, true, t, undefined, undefined, {
-        kalmanYCam: sy > 0 ? predY / sy : null,
+        kalmanYCam,
         sx: prev?.sx ?? null,
         sy,
       });
       refreshDebugRatios();
+
+      if (isShowBall() && isTrajectoryExtended() && kalmanEl && kalmanLabelEl) {
+        const dw = video.offsetWidth;
+        const drawX = isVideoDisplayMirrored() ? dw - predX : predX;
+        ballHighlighter.style.left = drawX + 'px';
+        ballHighlighter.style.top = predY + 'px';
+        ballHighlighter.style.width = '0px';
+        ballHighlighter.style.height = '0px';
+        ballHighlighter.style.borderColor = 'transparent';
+        ballHighlighter.style.display = 'block';
+        if (metaEl) metaEl.textContent = '';
+        kalmanEl.style.left = '0px';
+        kalmanEl.style.top = '0px';
+        kalmanEl.style.display = 'block';
+        kalmanLabelEl.textContent = kalmanYCam != null ? String(Math.round(kalmanYCam)) : '—';
+      } else {
+        ballHighlighter.style.display = 'none';
+      }
+    } else {
+      ballHighlighter.style.display = 'none';
     }
   }
   liveSnakeVisualisation();
@@ -1960,7 +1980,7 @@ function liveSnakeVisualisation() {
 
   for (let i = 0; i < n; i++) {
     const pt = STATE.ballState[i];
-    const dotSize = pt.juggleCount != null ? SNAKE_DOT_SIZE_JUGGLE : SNAKE_DOT_SIZE;
+    const dotSize = (pt.juggleCount != null || pt.isMinY) ? SNAKE_DOT_SIZE_JUGGLE : SNAKE_DOT_SIZE;
     const half = dotSize / 2;
     const cap = STATE_BUFFER_CAPACITY;
     const xFrac = cap > 1 ? ((cap - n) + i) / (cap - 1) : 0.5;
