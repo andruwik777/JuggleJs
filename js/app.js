@@ -1861,20 +1861,16 @@ function displayVideoDetections(result) {
           ' h:' + Math.round(b.height);
       }
       if (kalmanEl && kalmanLabelEl) {
-        if (isTrajectoryExtended()) {
-          // trackX is in unmirrored frame→stage space; boxLeft is already flipped for Live mirror.
-          const xFromUnmirroredBoxLeft = trackX - b.originX * sx;
-          const kx = isVideoDisplayMirrored()
-            ? boxW - xFromUnmirroredBoxLeft
-            : xFromUnmirroredBoxLeft;
-          const ky = smoothedY - boxTop;
-          kalmanEl.style.left = kx + 'px';
-          kalmanEl.style.top = ky + 'px';
-          kalmanEl.style.display = 'block';
-          kalmanLabelEl.textContent = String(Math.round(kalmanYCam));
-        } else {
-          kalmanEl.style.display = 'none';
-        }
+        // trackX is in unmirrored frame→stage space; boxLeft is already flipped for Live mirror.
+        const xFromUnmirroredBoxLeft = trackX - b.originX * sx;
+        const kx = isVideoDisplayMirrored()
+          ? boxW - xFromUnmirroredBoxLeft
+          : xFromUnmirroredBoxLeft;
+        const ky = smoothedY - boxTop;
+        kalmanEl.style.left = kx + 'px';
+        kalmanEl.style.top = ky + 'px';
+        kalmanEl.style.display = 'block';
+        kalmanLabelEl.textContent = String(Math.round(kalmanYCam));
       }
     } else {
       ballHighlighter.style.display = 'none';
@@ -1896,7 +1892,7 @@ function displayVideoDetections(result) {
       });
       refreshDebugRatios();
 
-      if (isShowBall() && isTrajectoryExtended() && kalmanEl && kalmanLabelEl) {
+      if (isShowBall() && kalmanEl && kalmanLabelEl) {
         const dw = video.offsetWidth;
         const drawX = isVideoDisplayMirrored() ? dw - holdX : holdX;
         ballHighlighter.style.left = drawX + 'px';
