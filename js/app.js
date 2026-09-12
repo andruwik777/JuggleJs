@@ -477,7 +477,7 @@ function isShowBall() {
 
 function getTrajectoryPointColor(pt) {
   if (pt.juggleCount != null) return SNAKE_COLOR_JUGGLE;
-  if (pt.isMinY) return SNAKE_COLOR_MIN_Y;
+  if (pt.isMinY && isTrajectoryExtended()) return SNAKE_COLOR_MIN_Y;
   if (pt.calculatedOnly) return SNAKE_COLOR_CALC;
   if (isTrajectoryExtended()) {
     return SNAKE_DETECT_CYCLE[(pt.colorIndex || 0) % SNAKE_DETECT_CYCLE.length];
