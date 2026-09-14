@@ -24,7 +24,8 @@
   <div class="controls">
   <label><input id="ballEnabled" type="checkbox" checked> Ball</label>
   <label><input id="poseEnabled" type="checkbox" checked> Pose</label>
-  <label><input id="poseGpu" type="checkbox" disabled> Pose GPU (unchecked: CPU)</label>
+  <label><input id="ballGpu" type="checkbox" checked disabled> Ball GPU</label>
+  <label><input id="poseGpu" type="checkbox" disabled> Pose GPU</label>
   </div>
   <p id="timing" title="Sum: combined API durations. Join: elapsed time until both results arrive. Prep: frame preparation. Wait: time after ball detection until pose results arrive. Frame: preparation, inference, waiting and canvas drawing commands; excludes browser presentation.">Ball: — ms
 Pose: — ms

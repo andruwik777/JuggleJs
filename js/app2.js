@@ -10,10 +10,12 @@ const retry = document.getElementById('retry');
 const timing = document.getElementById('timing');
 const fpsValue = document.getElementById('fpsValue');
 const poseGpu = document.getElementById('poseGpu');
+const ballGpu = document.getElementById('ballGpu');
 const ballEnabled = document.getElementById('ballEnabled');
 const poseEnabled = document.getElementById('poseEnabled');
 let settingsRevision = 0;
 let poseDelegate = 'CPU';
+let ballDelegate = 'GPU';
 
 let objectDetector;
 let poseWorker;
@@ -28,6 +30,7 @@ let fpsWindowStart = 0;
 let processedFrames = 0;
 
 function stop() {
+  ballGpu.disabled = true;
   poseGpu.disabled = true;
   runId++;
   poseWorker?.terminate();
@@ -80,6 +83,20 @@ async function renderFrame(currentRun = runId) {
   let workerFrame;
   try {
     // Apply changes between frames, when no detection request is pending.
+    const requestedBallDelegate = ballGpu.checked ? 'GPU' : 'CPU';
+    if (ballEnabled.checked && requestedBallDelegate !== ballDelegate) {
+      ballGpu.disabled = true;
+      status.textContent = `Switching ball to ${requestedBallDelegate}…`;
+      await objectDetector.setOptions({ baseOptions: { delegate: requestedBallDelegate } });
+      if (currentRun !== runId) return;
+      ballDelegate = requestedBallDelegate;
+      fpsWindowStart = performance.now();
+      processedFrames = 0;
+      fpsValue.textContent = '—';
+      timing.textContent = 'Collecting timing samples…';
+      status.textContent = '';
+      ballGpu.disabled = false;
+    }
     const requestedDelegate = poseGpu.checked ? 'GPU' : 'CPU';
     if (poseEnabled.checked && requestedDelegate !== poseDelegate) {
       poseGpu.disabled = true;
@@ -173,6 +190,7 @@ async function renderFrame(currentRun = runId) {
 }
 
 async function start() {
+  ballGpu.disabled = true;
   poseGpu.disabled = true;
   retry.hidden = true;
   status.textContent = 'Loading models and starting the camera…';
@@ -182,8 +200,9 @@ async function start() {
     }
     const { FilesetResolver, ObjectDetector, PoseLandmarker, DrawingUtils } = await import(`${VISION_URL}/vision_bundle.mjs`);
     const vision = await FilesetResolver.forVisionTasks(`${VISION_URL}/wasm`);
+    if (!objectDetector) ballDelegate = ballGpu.checked ? 'GPU' : 'CPU';
     objectDetector ??= await ObjectDetector.createFromOptions(vision, {
-      baseOptions: { modelAssetPath: './models/model_fp16.tflite', delegate: 'GPU' },
+      baseOptions: { modelAssetPath: './models/model_fp16.tflite', delegate: ballDelegate },
       runningMode: 'VIDEO',
       scoreThreshold: 0.4,
       maxResults: 1,
@@ -204,6 +223,7 @@ async function start() {
     processedFrames = 0;
     status.textContent = '';
     poseGpu.disabled = false;
+    ballGpu.disabled = false;
     renderFrame();
   } catch (error) {
     showError(error);

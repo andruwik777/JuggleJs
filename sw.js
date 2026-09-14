@@ -62,6 +62,13 @@ function isCacheableRequest(request) {
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
+  const url = new URL(request.url);
+  const demoPaths = ['test2.html', 'js/app2.js', 'js/pose-worker2.js']
+    .map((path) => new URL(path, self.registration.scope).pathname);
+  if (url.origin === self.location.origin && demoPaths.includes(url.pathname)) {
+    event.respondWith(fetch(request, { cache: 'no-store' }));
+    return;
+  }
   if (!isCacheableRequest(request)) return;
 
   event.respondWith((async () => {
