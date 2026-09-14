@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ball and pose demo</title>
+  <style>
+    body { box-sizing: border-box; margin: 0 auto; padding: 12px 16px max(12px, env(safe-area-inset-bottom)); max-width: 960px; height: 100dvh; display: flex; flex-direction: column; font-family: system-ui, sans-serif; background: #171717; color: #fff; }
+    .controls { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+    .stage { position: relative; background: #000; flex-shrink: 0; }
+    video { display: block; width: 100%; transform: scaleX(-1); }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; transform: scaleX(-1); pointer-events: none; }
+    button { padding: 10px 16px; margin-bottom: 16px; cursor: pointer; }
+    #status:empty { display: none; }
+    #timing { font: 12px/1.4 ui-monospace, monospace; white-space: pre-line; margin: 10px 0; flex-shrink: 0; }
+    .fps { flex: 1 0 100px; min-height: 100px; container-type: size; display: flex; align-items: center; justify-content: center; gap: 12px; font-variant-numeric: tabular-nums; }
+    #fpsValue { font-size: min(28cqw, 75cqh); font-weight: 800; line-height: 1; }
+    .fps-label { font-size: clamp(16px, 6cqw, 32px); }
+  </style>
+</head>
+<body>
+  <p id="status" role="status">Loading MediaPipe…</p>
+  <button id="retry" type="button" hidden>Retry</button>
+  <div class="controls">
+  <label><input id="ballEnabled" type="checkbox" checked> Ball</label>
+  <label><input id="poseEnabled" type="checkbox" checked> Pose</label>
+  <label><input id="poseGpu" type="checkbox" disabled> Pose GPU (unchecked: CPU)</label>
+  </div>
+  <p id="timing" title="Sum: combined API durations. Join: elapsed time until both results arrive. Prep: frame preparation. Wait: time after ball detection until pose results arrive. Frame: preparation, inference, waiting and canvas drawing commands; excludes browser presentation.">Ball: — ms
+Pose: — ms
+Sum: — ms
+Join: — ms
+Prep: — ms
+Wait: — ms
+Frame: — ms</p>
+  <div class="stage">
+    <video id="webcam" autoplay muted playsinline></video>
+    <canvas id="overlay"></canvas>
+  </div>
+  <div class="fps"><span id="fpsValue">—</span><span class="fps-label">FPS</span></div>
+  <script type="module" src="./js/app2.js"></script>
+</body>
+</html>
