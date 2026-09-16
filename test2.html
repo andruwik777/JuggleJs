@@ -26,6 +26,7 @@
   <label><input id="poseEnabled" type="checkbox" checked> Pose</label>
   <label><input id="ballGpu" type="checkbox" checked disabled> Ball GPU</label>
   <label><input id="poseGpu" type="checkbox" disabled> Pose GPU</label>
+  <label title="Checked: ImageBitmap. Unchecked: live video; the pose snapshot may be from a slightly earlier frame."><input id="ballBitmap" type="checkbox" checked> Ball ImageBitmap</label>
   </div>
   <p id="timing" title="All values are averages over the same completed frame intervals. Cleanup: main-thread bitmap close calls. Tail: all work after Frame, including Cleanup. Work: Frame + Tail. Idle: time until the next processed frame, including browser scheduling and skipped callbacks. Interval: Work + Idle. FPS: 1000 / average Interval. Browser presentation and worker cleanup are not separately measured.">Collecting timing samples…</p>
   <div class="stage">

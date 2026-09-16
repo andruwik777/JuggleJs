@@ -11,6 +11,7 @@ const timing = document.getElementById('timing');
 const fpsValue = document.getElementById('fpsValue');
 const poseGpu = document.getElementById('poseGpu');
 const ballGpu = document.getElementById('ballGpu');
+const ballBitmap = document.getElementById('ballBitmap');
 const ballEnabled = document.getElementById('ballEnabled');
 const poseEnabled = document.getElementById('poseEnabled');
 let settingsRevision = 0;
@@ -50,7 +51,7 @@ function recordInterval(nextStart) {
   timingCount++;
   // Use the same complete start-to-start intervals for every average and FPS.
   if (timingTotals.Interval >= 500) {
-    timing.textContent = 'Average (ms)\n' + Object.entries(timingTotals).map(([name, total]) => {
+    timing.textContent = Object.entries(timingTotals).map(([name, total]) => {
       const disabled = (name === 'Ball' && !sample.detectBall) || (name === 'Pose' && !sample.detectPose);
       return name + ': ' + (disabled ? 'off' : (total / timingCount).toFixed(1));
     }).join('\n');
@@ -145,16 +146,17 @@ async function renderFrame(currentRun = runId) {
       const revision = settingsRevision;
       const detectBall = ballEnabled.checked;
       const detectPose = poseEnabled.checked;
+      const useBallBitmap = detectBall && ballBitmap.checked;
       lastVideoTime = video.currentTime;
       if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
       }
 
-      // Snapshot only for the worker; duplicate only when both APIs need the frame.
-      if (detectPose) {
+      // Share a frozen image only in bitmap mode; video mode reads the live video.
+      if (detectPose || useBallBitmap) {
         frame = await createImageBitmap(video);
-        workerFrame = detectBall ? await createImageBitmap(frame) : frame;
+        if (detectPose) workerFrame = useBallBitmap ? await createImageBitmap(frame) : frame;
       }
       if (currentRun !== runId) return;
       if (revision !== settingsRevision) {
@@ -168,7 +170,7 @@ async function renderFrame(currentRun = runId) {
       // Handle cancellation even if object detection throws before the await.
       posePromise.catch(() => {});
       const objectStart = performance.now();
-      const objects = detectBall ? objectDetector.detectForVideo(frame || video, timestamp) : { detections: [] };
+      const objects = detectBall ? objectDetector.detectForVideo(useBallBitmap ? frame : video, timestamp) : { detections: [] };
       const objectEnd = performance.now();
       const poses = await posePromise;
       const joinedAt = performance.now();
@@ -257,7 +259,7 @@ async function start() {
 }
 
 retry.addEventListener('click', start);
-for (const checkbox of [ballEnabled, poseEnabled]) {
+for (const checkbox of [ballEnabled, poseEnabled, ballBitmap]) {
   checkbox.addEventListener('change', () => {
     settingsRevision++;
     context.clearRect(0, 0, canvas.width, canvas.height);
