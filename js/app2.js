@@ -26,8 +26,40 @@ let poseConnections;
 let stream;
 let animationId;
 let lastVideoTime = -1;
-let fpsWindowStart = 0;
-let processedFrames = 0;
+let previousSample = null;
+let timingTotals = {};
+let timingCount = 0;
+
+function resetTiming() {
+  previousSample = null;
+  timingTotals = {};
+  timingCount = 0;
+  fpsValue.textContent = '—';
+  timing.textContent = 'Collecting timing samples…';
+}
+
+function recordInterval(nextStart) {
+  if (!previousSample) return;
+  const sample = previousSample;
+  sample.Work = sample.end - sample.start;
+  sample.Idle = nextStart - sample.end;
+  sample.Interval = nextStart - sample.start;
+  for (const name of ['Ball', 'Pose', 'Sum', 'Join', 'Prep', 'Wait', 'Frame', 'Cleanup', 'Tail', 'Work', 'Idle', 'Interval']) {
+    timingTotals[name] = (timingTotals[name] || 0) + sample[name];
+  }
+  timingCount++;
+  // Use the same complete start-to-start intervals for every average and FPS.
+  if (timingTotals.Interval >= 500) {
+    timing.textContent = 'Average (ms)\n' + Object.entries(timingTotals).map(([name, total]) => {
+      const disabled = (name === 'Ball' && !sample.detectBall) || (name === 'Pose' && !sample.detectPose);
+      return name + ': ' + (disabled ? 'off' : (total / timingCount).toFixed(1));
+    }).join('\n');
+    fpsValue.textContent = sample.detectBall || sample.detectPose
+      ? (timingCount * 1000 / timingTotals.Interval).toFixed(1) : '0.0';
+    timingTotals = {};
+    timingCount = 0;
+  }
+}
 
 function stop() {
   ballGpu.disabled = true;
@@ -81,6 +113,7 @@ async function initializePoseWorker() {
 async function renderFrame(currentRun = runId) {
   let frame;
   let workerFrame;
+  let completedSample;
   try {
     // Apply changes between frames, when no detection request is pending.
     const requestedBallDelegate = ballGpu.checked ? 'GPU' : 'CPU';
@@ -90,10 +123,7 @@ async function renderFrame(currentRun = runId) {
       await objectDetector.setOptions({ baseOptions: { delegate: requestedBallDelegate } });
       if (currentRun !== runId) return;
       ballDelegate = requestedBallDelegate;
-      fpsWindowStart = performance.now();
-      processedFrames = 0;
-      fpsValue.textContent = '—';
-      timing.textContent = 'Collecting timing samples…';
+      resetTiming();
       status.textContent = '';
       ballGpu.disabled = false;
     }
@@ -104,14 +134,14 @@ async function renderFrame(currentRun = runId) {
       await workerRequest({ type: 'delegate', delegate: requestedDelegate });
       if (currentRun !== runId) return;
       poseDelegate = requestedDelegate;
-      fpsWindowStart = performance.now();
-      processedFrames = 0;
-      timing.textContent = 'Collecting timing samples…';
+      resetTiming();
       status.textContent = '';
       poseGpu.disabled = false;
     }
     if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.currentTime !== lastVideoTime) {
       const frameStart = performance.now();
+      recordInterval(frameStart);
+      previousSample = null;
       const revision = settingsRevision;
       const detectBall = ballEnabled.checked;
       const detectPose = poseEnabled.checked;
@@ -160,32 +190,29 @@ async function renderFrame(currentRun = runId) {
         if (box) context.strokeRect(box.originX, box.originY, box.width, box.height);
       }
       const frameEnd = performance.now();
-      processedFrames++;
-      // Refresh twice per second; FPS counts processed camera frames, including waits.
-      const elapsed = frameEnd - fpsWindowStart;
-      if (elapsed >= 500) {
-        const ballMs = detectBall ? objectEnd - objectStart : 0;
-        timing.textContent = [
-          `Ball: ${detectBall ? `${ballMs.toFixed(1)} ms` : 'off'}`,
-          `Pose: ${detectPose ? `${poses.poseMs.toFixed(1)} ms` : 'off'}`,
-          `Sum: ${(ballMs + poses.poseMs).toFixed(1)} ms`,
-          `Join: ${(joinedAt - timestamp).toFixed(1)} ms`,
-          `Prep: ${(timestamp - frameStart).toFixed(1)} ms`,
-          `Wait: ${(joinedAt - objectEnd).toFixed(1)} ms`,
-          `Frame: ${(frameEnd - frameStart).toFixed(1)} ms`,
-        ].join('\n');
-        fpsValue.textContent = detectBall || detectPose ? (processedFrames * 1000 / elapsed).toFixed(1) : '0.0';
-        fpsWindowStart = frameEnd;
-        processedFrames = 0;
-      }
+      const ballMs = detectBall ? objectEnd - objectStart : 0;
+      completedSample = {
+        start: frameStart, frameEnd, revision, detectBall, detectPose,
+        Ball: ballMs, Pose: poses.poseMs, Sum: ballMs + poses.poseMs,
+        Join: joinedAt - timestamp, Prep: timestamp - frameStart,
+        Wait: joinedAt - objectEnd, Frame: frameEnd - frameStart,
+      };
     }
     // Only one frame is in flight: slow inference cannot build a stale frame queue.
     if (currentRun === runId) animationId = requestAnimationFrame(() => renderFrame(currentRun));
   } catch (error) {
     if (currentRun === runId) showError(error);
   } finally {
+    const cleanupStart = performance.now();
     frame?.close();
     if (workerFrame !== frame) workerFrame?.close();
+    const cleanupEnd = performance.now();
+    if (completedSample && currentRun === runId && completedSample.revision === settingsRevision) {
+      completedSample.Cleanup = cleanupEnd - cleanupStart;
+      completedSample.Tail = cleanupEnd - completedSample.frameEnd;
+      completedSample.end = cleanupEnd;
+      previousSample = completedSample;
+    }
   }
 }
 
@@ -219,8 +246,7 @@ async function start() {
     video.srcObject = stream;
     await video.play();
     lastVideoTime = -1;
-    fpsWindowStart = performance.now();
-    processedFrames = 0;
+    resetTiming();
     status.textContent = '';
     poseGpu.disabled = false;
     ballGpu.disabled = false;
@@ -235,9 +261,7 @@ for (const checkbox of [ballEnabled, poseEnabled]) {
   checkbox.addEventListener('change', () => {
     settingsRevision++;
     context.clearRect(0, 0, canvas.width, canvas.height);
-    fpsWindowStart = performance.now();
-    processedFrames = 0;
-    timing.textContent = 'Collecting timing samples…';
+    resetTiming();
   });
 }
 window.addEventListener('pagehide', () => {

@@ -27,13 +27,7 @@
   <label><input id="ballGpu" type="checkbox" checked disabled> Ball GPU</label>
   <label><input id="poseGpu" type="checkbox" disabled> Pose GPU</label>
   </div>
-  <p id="timing" title="Sum: combined API durations. Join: elapsed time until both results arrive. Prep: frame preparation. Wait: time after ball detection until pose results arrive. Frame: preparation, inference, waiting and canvas drawing commands; excludes browser presentation.">Ball: — ms
-Pose: — ms
-Sum: — ms
-Join: — ms
-Prep: — ms
-Wait: — ms
-Frame: — ms</p>
+  <p id="timing" title="All values are averages over the same completed frame intervals. Cleanup: main-thread bitmap close calls. Tail: all work after Frame, including Cleanup. Work: Frame + Tail. Idle: time until the next processed frame, including browser scheduling and skipped callbacks. Interval: Work + Idle. FPS: 1000 / average Interval. Browser presentation and worker cleanup are not separately measured.">Collecting timing samples…</p>
   <div class="stage">
     <video id="webcam" autoplay muted playsinline></video>
     <canvas id="overlay"></canvas>
